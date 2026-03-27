@@ -134,6 +134,13 @@ export function ProgramEditorPage() {
         </Button>
       </form>
 
+      <Link
+        to={`/programs/${program.id}/track`}
+        className="mt-4 block"
+      >
+        <Button className="w-full">Track a workout</Button>
+      </Link>
+
       <div className="mt-8 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Daily routines

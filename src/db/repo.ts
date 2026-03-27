@@ -1,4 +1,4 @@
-import type { Exercise, ExerciseKind, Program } from '../types'
+import type { Exercise, ExerciseKind, Program, WorkoutSession } from '../types'
 import { db } from './schema'
 import { isSeedExerciseId } from './seed'
 
@@ -57,7 +57,42 @@ export async function saveProgram(program: Program): Promise<void> {
 }
 
 export async function deleteProgram(id: string): Promise<void> {
-  await db.programs.delete(id)
+  await db.transaction('rw', db.programs, db.sessions, async () => {
+    await db.sessions.where('programId').equals(id).delete()
+    await db.programs.delete(id)
+  })
+}
+
+export async function saveWorkoutSession(session: WorkoutSession): Promise<void> {
+  await db.sessions.put(session)
+}
+
+export async function getWorkoutSession(
+  id: string,
+): Promise<WorkoutSession | undefined> {
+  return db.sessions.get(id)
+}
+
+export async function deleteWorkoutSession(id: string): Promise<void> {
+  await db.sessions.delete(id)
+}
+
+export async function listSessionsForProgram(
+  programId: string,
+): Promise<WorkoutSession[]> {
+  return db.sessions
+    .where('programId')
+    .equals(programId)
+    .sortBy('createdAt')
+    .then((rows) => rows.reverse())
+}
+
+export async function listSessionsForProgramDay(
+  programId: string,
+  dayId: string,
+): Promise<WorkoutSession[]> {
+  const all = await listSessionsForProgram(programId)
+  return all.filter((s) => s.dayId === dayId)
 }
 
 export async function createProgram(name: string): Promise<Program> {

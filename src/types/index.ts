@@ -8,20 +8,20 @@ export interface Exercise {
   isCustom: boolean
 }
 
-export interface ResistanceSet {
+/**
+ * Planned resistance in a program day: same reps/weight/tempo/etc. for every set;
+ * `setCount` is how many sets to do.
+ */
+export interface ResistanceBlock {
   id: string
+  type: 'resistance'
+  exerciseId: string
+  setCount: number
   reps?: number
   weight?: number
   tempo?: string
   intensity?: string
   restSec?: number
-}
-
-export interface ResistanceBlock {
-  id: string
-  type: 'resistance'
-  exerciseId: string
-  sets: ResistanceSet[]
 }
 
 /** Activity block: duration (minutes) and length (distance km or user-defined meaning). */
@@ -49,9 +49,55 @@ export interface Program {
   days: DailyRoutine[]
 }
 
+/**
+ * Logged resistance: one card per exercise. All sets share the same reps/weight/etc.;
+ * `setCount` is how many sets you did.
+ */
+export interface ResistanceBlockLog {
+  blockId: string
+  type: 'resistance'
+  exerciseId: string
+  exerciseName: string
+  setCount: number
+  reps?: number
+  weight?: number
+  tempo?: string
+  intensity?: string
+  restSec?: number
+  /** Whole exercise finished */
+  done?: boolean
+}
+
+export interface ActivityBlockLog {
+  blockId: string
+  type: 'activity'
+  exerciseId: string
+  exerciseName: string
+  durationMin?: number
+  lengthKm?: number
+  notes?: string
+}
+
+export type BlockSessionLog = ResistanceBlockLog | ActivityBlockLog
+
+/** One saved workout for a program day; multiple rows allowed for same programId + dayId. */
+export interface WorkoutSession {
+  id: string
+  programId: string
+  dayId: string
+  programName: string
+  dayLabel: string
+  createdAt: number
+  completedAt?: number
+  notes?: string
+  blocks: BlockSessionLog[]
+}
+
 export interface ExportPayload {
-  version: 1
+  version: 1 | 2
   exportedAt: string
   exercises: Exercise[]
   programs: Program[]
+  /** Present on v2 exports; omitted in legacy v1 backups. */
+  sessions?: WorkoutSession[]
 }

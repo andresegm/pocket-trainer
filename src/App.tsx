@@ -5,7 +5,10 @@ import { HomePage } from './pages/HomePage'
 import { LibraryPage } from './pages/LibraryPage'
 import { ProgramEditorPage } from './pages/ProgramEditorPage'
 import { ProgramsPage } from './pages/ProgramsPage'
+import { SessionDetailPage } from './pages/SessionDetailPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { TrackPickerPage } from './pages/TrackPickerPage'
+import { WorkoutTrackPage } from './pages/WorkoutTrackPage'
 
 export default function App() {
   return (
@@ -15,6 +18,9 @@ export default function App() {
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/programs" element={<ProgramsPage />} />
         <Route path="/programs/:programId" element={<ProgramEditorPage />} />
+        <Route path="/programs/:programId/track" element={<TrackPickerPage />} />
+        <Route path="/programs/:programId/track/:dayId" element={<WorkoutTrackPage />} />
+        <Route path="/programs/:programId/sessions/:sessionId" element={<SessionDetailPage />} />
         <Route path="/programs/:programId/days/:dayId" element={<DayEditorPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

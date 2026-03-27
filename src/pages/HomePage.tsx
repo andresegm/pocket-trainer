@@ -8,7 +8,8 @@ export function HomePage() {
         Pocket Trainer
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-400">
-        Build programs from your exercise library, day by day. Resistance work
+        Build programs from your exercise library, day by day, then track each
+        workout session. Resistance work
         uses sets, reps, and optional tempo, intensity, and rest. Activities
         track time and distance. Everything stays on this device.
       </p>

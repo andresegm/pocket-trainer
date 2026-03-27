@@ -60,24 +60,31 @@ export function ProgramsPage() {
         {programs.map((p) => (
           <li
             key={p.id}
-            className="flex items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3"
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3"
           >
             <Link
               to={`/programs/${p.id}`}
-              className="min-w-0 flex-1 font-medium text-teal-400 hover:text-teal-300"
+              className="block min-w-0 overflow-hidden font-medium text-teal-400 hover:text-teal-300"
             >
-              <span className="truncate">{p.name}</span>
-              <span className="mt-0.5 block text-xs font-normal text-slate-500">
+              <span className="block truncate">{p.name}</span>
+              <span className="mt-0.5 block truncate text-xs font-normal text-slate-500">
                 {p.days.length} day{p.days.length === 1 ? '' : 's'}
               </span>
             </Link>
-            <Button
-              variant="danger"
-              className="shrink-0 px-3 py-1.5 text-xs"
-              onClick={() => void onDelete(p.id, p.name)}
-            >
-              Delete
-            </Button>
+            <div className="flex shrink-0 justify-end gap-2">
+              <Link to={`/programs/${p.id}/track`}>
+                <Button variant="secondary" className="px-3 py-1.5 text-xs">
+                  Track
+                </Button>
+              </Link>
+              <Button
+                variant="danger"
+                className="px-3 py-1.5 text-xs"
+                onClick={() => void onDelete(p.id, p.name)}
+              >
+                Delete
+              </Button>
+            </div>
           </li>
         ))}
         {programs.length === 0 && (

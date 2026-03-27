@@ -91,7 +91,9 @@ export function DayEditorPage() {
       id: newId(),
       type: 'resistance',
       exerciseId: ex.id,
-      sets: [{ id: newId(), reps: 8, weight: 0 }],
+      setCount: 3,
+      reps: 8,
+      weight: 0,
     }
     void persist({
       ...program,
@@ -143,8 +145,8 @@ export function DayEditorPage() {
       </Link>
       <h1 className="mt-2 text-xl font-semibold text-white">{day.label}</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Add exercises from your library. Resistance blocks support multiple sets;
-        activities capture duration and distance.
+        Add exercises from your library. For resistance, set how many sets and
+        the reps/weight (same for each set). Activities use duration and distance.
       </p>
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row">

@@ -85,8 +85,8 @@ export function SettingsPage() {
       <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
         <h2 className="text-sm font-semibold text-slate-200">Backup</h2>
         <p className="mt-2 text-sm text-slate-500">
-          Download a JSON file with all exercises and programs. Store it somewhere
-          safe (Files, iCloud, email).
+          Download a JSON file with exercises, programs, and saved workout
+          sessions. Store it somewhere safe (Files, iCloud, email).
         </p>
         <Button
           className="mt-4 w-full"
@@ -100,7 +100,9 @@ export function SettingsPage() {
       <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
         <h2 className="text-sm font-semibold text-slate-200">Restore</h2>
         <p className="mt-2 text-sm text-slate-500">
-          Importing replaces all exercises and programs on this device.
+          Importing replaces all exercises, programs, and sessions on this
+          device. Older backups without sessions still import (sessions will be
+          empty).
         </p>
         <input
           ref={inputRef}

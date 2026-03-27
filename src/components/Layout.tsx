@@ -9,7 +9,14 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export function Layout() {
   return (
     <div className="flex min-h-dvh flex-col bg-slate-950 text-slate-100">
-      <main className="safe-pad flex-1 pb-24">
+      {/*
+        Bottom padding must clear the fixed tab bar (~4.5–5.5rem) plus the home
+        indicator. Do not use .safe-pad on main — it sets padding-bottom and
+        overrides pb-*, leaving almost no space above the nav on many screens.
+      */}
+      <main
+        className="flex-1 pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))]"
+      >
         <Outlet />
       </main>
       <nav className="safe-pad fixed bottom-0 left-0 right-0 z-10 flex border-t border-slate-800 bg-slate-950/95 backdrop-blur">

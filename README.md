@@ -30,6 +30,19 @@ npm run preview
 
 Output is in `dist/`.
 
+## Deploy to Vercel
+
+This repo includes [`vercel.json`](vercel.json) so client-side routes (React Router) fall back to `index.html`.
+
+1. Sign in at [vercel.com](https://vercel.com) with the **Vercel account you want for this app** (not necessarily the same as your other projects).
+2. **Add New Project** → import the `pocket-trainer` GitHub repo.
+3. Preset should detect **Vite**. Confirm:
+   - **Build Command:** `npm run build` (runs `tsc` + `vite build`)
+   - **Output Directory:** `dist`
+4. Deploy. `npm install` will respect [`.npmrc`](.npmrc) (`legacy-peer-deps`) on Vercel.
+
+**Using a different Vercel account than another project:** Vercel ties each project to the team/account you’re logged into when you create it. Use a **private/incognito window** or another **browser profile**, log into Vercel with the **second account**, then import this repo—or use **Account / Team switcher** in the Vercel dashboard and create the project under the correct team. Same GitHub repo can be connected to multiple Vercel accounts as **separate projects** (each gets its own URL and settings).
+
 ## Use on iPhone when you are not at home
 
 Safari needs a stable **HTTPS** origin (or your machine running with a tunnel) for a normal web app workflow. The practical options:

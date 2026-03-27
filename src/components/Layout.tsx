@@ -15,7 +15,7 @@ export function Layout() {
         overrides pb-*, leaving almost no space above the nav on many screens.
       */}
       <main
-        className="flex-1 pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))]"
+        className="flex-1 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))]"
       >
         <Outlet />
       </main>

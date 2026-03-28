@@ -3,11 +3,34 @@ import type {
   DailyRoutine,
   Exercise,
   LoggedResistanceSet,
+  ResistanceBlockLog,
 } from '../types'
 import { newId } from './repo'
 
 export function exerciseNameMap(exercises: Exercise[]): Map<string, string> {
   return new Map(exercises.map((e) => [e.id, e.name]))
+}
+
+/**
+ * 0-based index of this resistance block among blocks with the same exercise
+ * in the workout (handles the same exercise appearing twice in one day).
+ */
+export function resistanceExerciseOrdinal(
+  blocks: BlockSessionLog[],
+  blockId: string,
+): number {
+  const target = blocks.find(
+    (b) => b.blockId === blockId && b.type === 'resistance',
+  ) as ResistanceBlockLog | undefined
+  if (!target) return 0
+  let ordinal = 0
+  for (const b of blocks) {
+    if (b.type !== 'resistance') continue
+    const r = b as ResistanceBlockLog
+    if (r.blockId === blockId) return ordinal
+    if (r.exerciseId === target.exerciseId) ordinal++
+  }
+  return 0
 }
 
 function templateSetsFromBlock(block: {

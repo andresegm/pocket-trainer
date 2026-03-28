@@ -10,12 +10,24 @@ import { Button } from './Button'
 
 export type SessionWorkoutAssist = {
   lastResistanceSetsByBlockId: Map<string, LoggedResistanceSet[]>
+  /** Last logged sets for this exercise from any completed session (per set row hints). */
+  historyResistanceSetsByBlockId?: Map<string, LoggedResistanceSet[]>
   onCopyLastResistance: (blockId: string) => void
   lastActivityFieldsByBlockId: Map<
     string,
     { durationMin?: number; lengthKm?: number; notes?: string }
   >
   onCopyLastActivity: (blockId: string) => void
+}
+
+function formatResistanceSnapshot(s: LoggedResistanceSet | undefined): string {
+  if (!s) return ''
+  const parts: string[] = []
+  if (s.reps != null) parts.push(`${s.reps} reps`)
+  if (s.weight != null) parts.push(`${s.weight}`)
+  if (s.tempo) parts.push(s.tempo)
+  if (s.intensity) parts.push(s.intensity)
+  return parts.join(' · ')
 }
 
 function updateResistanceLog(
@@ -62,6 +74,9 @@ export function SessionBlockEditors({
   workoutAssist?: SessionWorkoutAssist
 }) {
   const [restRemaining, setRestRemaining] = useState<number | null>(null)
+  const [expandedDoneSetIds, setExpandedDoneSetIds] = useState<Set<string>>(
+    () => new Set(),
+  )
 
   useEffect(() => {
     if (restRemaining === null || restRemaining <= 0) return
@@ -139,13 +154,59 @@ export function SessionBlockEditors({
                     </div>
                   )}
                 <div className="space-y-3">
-                  {bl.sets.map((set, i) => (
+                  {bl.sets.map((set, i) => {
+                    const historySets =
+                      workoutAssist?.historyResistanceSetsByBlockId?.get(
+                        bl.blockId,
+                      )
+                    const historyHint = formatResistanceSnapshot(
+                      historySets?.[i],
+                    )
+                    const collapsedDone =
+                      set.done && !expandedDoneSetIds.has(set.id)
+
+                    if (collapsedDone) {
+                      return (
+                        <div
+                          key={set.id}
+                          className="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+                        >
+                          <button
+                            type="button"
+                            className="flex w-full items-start justify-between gap-3 text-left"
+                            onClick={() =>
+                              setExpandedDoneSetIds((prev) =>
+                                new Set(prev).add(set.id),
+                              )
+                            }
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-medium text-slate-500">
+                                Set {i + 1} · done
+                              </div>
+                              <div className="mt-0.5 text-sm text-slate-200">
+                                {formatResistanceSnapshot(set) ||
+                                  'Tap to view or edit'}
+                              </div>
+                            </div>
+                            <span
+                              className="shrink-0 text-slate-500"
+                              aria-hidden
+                            >
+                              ▾
+                            </span>
+                          </button>
+                        </div>
+                      )
+                    }
+
+                    return (
                     <div
                       key={set.id}
                       className="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
                     >
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
+                      <div className="mb-3 flex flex-col gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="text-xs font-medium text-slate-500">
                             Set {i + 1}
                           </span>
@@ -184,39 +245,67 @@ export function SessionBlockEditors({
                               Same as set {i}
                             </Button>
                           )}
+                          {historyHint ? (
+                            <span className="text-xs text-slate-500">
+                              Last time: {historyHint}
+                            </span>
+                          ) : null}
+                          {set.done && expandedDoneSetIds.has(set.id) ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="ml-auto px-2 py-1 text-xs text-slate-400"
+                              onClick={() =>
+                                setExpandedDoneSetIds((prev) => {
+                                  const next = new Set(prev)
+                                  next.delete(set.id)
+                                  return next
+                                })
+                              }
+                            >
+                              Collapse
+                            </Button>
+                          ) : null}
                         </div>
-                        <Button
-                          type="button"
-                          variant={set.done ? 'secondary' : 'primary'}
-                          className="px-3 py-1.5 text-xs"
-                          onClick={() => {
-                            const willComplete = !set.done
-                            const sec = set.restSec
-                            onChange(
-                              updateResistanceLog(
-                                blocks,
-                                bl.blockId,
-                                (b) => ({
-                                  ...b,
-                                  sets: b.sets.map((s) =>
-                                    s.id === set.id
-                                      ? { ...s, done: !s.done }
-                                      : s,
-                                  ),
-                                }),
-                              ),
-                            )
-                            if (
-                              willComplete &&
-                              typeof sec === 'number' &&
-                              sec >= 1
-                            ) {
-                              setRestRemaining(Math.floor(sec))
-                            }
-                          }}
-                        >
-                          {set.done ? 'Done — tap to undo' : 'Mark done'}
-                        </Button>
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant={set.done ? 'secondary' : 'primary'}
+                            className="px-3 py-1.5 text-xs whitespace-nowrap"
+                            onClick={() => {
+                              const willComplete = !set.done
+                              const sec = set.restSec
+                              onChange(
+                                updateResistanceLog(
+                                  blocks,
+                                  bl.blockId,
+                                  (b) => ({
+                                    ...b,
+                                    sets: b.sets.map((s) =>
+                                      s.id === set.id
+                                        ? { ...s, done: !s.done }
+                                        : s,
+                                    ),
+                                  }),
+                                ),
+                              )
+                              setExpandedDoneSetIds((prev) => {
+                                const next = new Set(prev)
+                                next.delete(set.id)
+                                return next
+                              })
+                              if (
+                                willComplete &&
+                                typeof sec === 'number' &&
+                                sec >= 1
+                              ) {
+                                setRestRemaining(Math.floor(sec))
+                              }
+                            }}
+                          >
+                            {set.done ? 'Done — tap to undo' : 'Mark done'}
+                          </Button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         <Field
@@ -403,7 +492,8 @@ export function SessionBlockEditors({
                         </div>
                       )}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
                 <div className="mt-3">
                   <Button

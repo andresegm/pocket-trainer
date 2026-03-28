@@ -5,12 +5,14 @@ import type {
   BlockSessionLog,
   LoggedResistanceSet,
   Program,
+  ResistanceBlockLog,
   WorkoutSession,
 } from '../types'
 import { db } from '../db/schema'
 import {
   deleteWorkoutSession,
   getLastCompletedSessionForProgramDay,
+  getLastResistanceSetsByBlockFromHistory,
   getProgram,
   listIncompleteSessionsForProgramDay,
   newId,
@@ -38,6 +40,8 @@ export function WorkoutTrackPage() {
   )
   const [resumedDraft, setResumedDraft] = useState(false)
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle')
+  const [historyResistanceSetsByBlockId, setHistoryResistanceSetsByBlockId] =
+    useState<Map<string, LoggedResistanceSet[]>>(new Map())
   const sessionCreatedAtRef = useRef<number | null>(null)
 
   const load = useCallback(async () => {
@@ -86,6 +90,35 @@ export function WorkoutTrackPage() {
     })
     return () => cancelAnimationFrame(id)
   }, [load])
+
+  const resistanceHistoryKey = useMemo(
+    () =>
+      blocks
+        .filter((b) => b.type === 'resistance')
+        .map((b) => {
+          const r = b as ResistanceBlockLog
+          return `${r.blockId}:${r.exerciseId}`
+        })
+        .join('|'),
+    [blocks],
+  )
+
+  useEffect(() => {
+    if (!resistanceHistoryKey) {
+      setHistoryResistanceSetsByBlockId(new Map())
+      return
+    }
+    let cancelled = false
+    void getLastResistanceSetsByBlockFromHistory(
+      blocks,
+      sessionId ?? undefined,
+    ).then((m) => {
+      if (!cancelled) setHistoryResistanceSetsByBlockId(m)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [resistanceHistoryKey, sessionId, blocks])
 
   const day = program?.days.find((d) => d.id === dayId)
 
@@ -315,6 +348,7 @@ export function WorkoutTrackPage() {
           onChange={setBlocks}
           workoutAssist={{
             lastResistanceSetsByBlockId,
+            historyResistanceSetsByBlockId,
             onCopyLastResistance,
             lastActivityFieldsByBlockId,
             onCopyLastActivity,

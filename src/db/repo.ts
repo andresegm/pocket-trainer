@@ -1,5 +1,14 @@
-import type { Exercise, ExerciseKind, Program, WorkoutSession } from '../types'
+import type {
+  BlockSessionLog,
+  Exercise,
+  ExerciseKind,
+  LoggedResistanceSet,
+  Program,
+  ResistanceBlockLog,
+  WorkoutSession,
+} from '../types'
 import { normalizeWorkoutSession } from './normalizeWorkoutSession'
+import { resistanceExerciseOrdinal } from './sessionLog'
 import { db } from './schema'
 import { isSeedExerciseId } from './seed'
 
@@ -123,6 +132,55 @@ export async function getLastCompletedSessionForProgramDay(
   return completed.reduce((best, s) =>
     (s.completedAt ?? 0) > (best.completedAt ?? 0) ? s : best,
   )
+}
+
+/**
+ * For each resistance block, the logged sets from the most recent completed
+ * workout anywhere that included this exercise (matched by exercise + ordinal
+ * when the exercise appears multiple times in a session).
+ */
+export async function getLastResistanceSetsByBlockFromHistory(
+  blocks: BlockSessionLog[],
+  excludeSessionId?: string,
+): Promise<Map<string, LoggedResistanceSet[]>> {
+  const resistanceBlocks = blocks.filter(
+    (b): b is ResistanceBlockLog => b.type === 'resistance',
+  )
+  if (resistanceBlocks.length === 0) return new Map()
+
+  const keys = resistanceBlocks.map((b) => ({
+    blockId: b.blockId,
+    exerciseId: b.exerciseId,
+    ordinal: resistanceExerciseOrdinal(blocks, b.blockId),
+  }))
+
+  const rows = await db.sessions.toArray()
+  const completed = rows
+    .filter((s) => s.completedAt != null)
+    .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))
+
+  const pending = new Set(keys.map((k) => k.blockId))
+  const result = new Map<string, LoggedResistanceSet[]>()
+
+  for (const s of completed) {
+    if (excludeSessionId && s.id === excludeSessionId) continue
+    const norm = normalizeWorkoutSession(s)
+    for (const key of keys) {
+      if (!pending.has(key.blockId)) continue
+      const sameExercise = norm.blocks.filter(
+        (b): b is ResistanceBlockLog =>
+          b.type === 'resistance' && b.exerciseId === key.exerciseId,
+      )
+      const blk = sameExercise[key.ordinal]
+      if (blk?.sets?.length) {
+        result.set(key.blockId, blk.sets)
+        pending.delete(key.blockId)
+      }
+    }
+    if (pending.size === 0) break
+  }
+
+  return result
 }
 
 export async function createProgram(name: string): Promise<Program> {

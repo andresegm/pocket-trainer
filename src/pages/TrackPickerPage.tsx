@@ -84,17 +84,24 @@ export function TrackPickerPage() {
           return (
             <li
               key={d.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3"
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3"
             >
-              <div>
-                <div className="font-medium text-slate-100">{d.label}</div>
-                <div className="text-xs text-slate-500">
+              <div className="min-w-0 overflow-hidden">
+                <div className="truncate font-medium text-slate-100">
+                  {d.label}
+                </div>
+                <div className="truncate text-xs text-slate-500">
                   {d.blocks.length} exercise{d.blocks.length === 1 ? '' : 's'}
                   {n > 0 && ` · ${n} session${n === 1 ? '' : 's'} logged`}
                 </div>
               </div>
-              <Link to={`/programs/${program.id}/track/${d.id}`}>
-                <Button className="text-sm">Start session</Button>
+              <Link
+                to={`/programs/${program.id}/track/${d.id}`}
+                className="shrink-0 self-center"
+              >
+                <Button className="text-sm whitespace-nowrap">
+                  Start session
+                </Button>
               </Link>
             </li>
           )
@@ -116,9 +123,11 @@ export function TrackPickerPage() {
               <li key={ses.id}>
                 <Link
                   to={`/programs/${program.id}/sessions/${ses.id}`}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/30 px-4 py-3 text-sm hover:border-slate-700"
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-xl border border-slate-800 bg-slate-900/30 px-4 py-3 text-sm hover:border-slate-700"
                 >
-                  <span className="text-slate-200">{ses.dayLabel}</span>
+                  <span className="min-w-0 truncate text-slate-200">
+                    {ses.dayLabel}
+                  </span>
                   <span className="shrink-0 text-xs text-slate-500">
                     {formatWhen(ses.completedAt ?? ses.createdAt)}
                   </span>

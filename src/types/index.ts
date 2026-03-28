@@ -49,23 +49,24 @@ export interface Program {
   days: DailyRoutine[]
 }
 
-/**
- * Logged resistance: one card per exercise. All sets share the same reps/weight/etc.;
- * `setCount` is how many sets you did.
- */
-export interface ResistanceBlockLog {
-  blockId: string
-  type: 'resistance'
-  exerciseId: string
-  exerciseName: string
-  setCount: number
+/** One logged set during a workout (values can differ from prescribed each set). */
+export interface LoggedResistanceSet {
+  id: string
   reps?: number
   weight?: number
   tempo?: string
   intensity?: string
   restSec?: number
-  /** Whole exercise finished */
   done?: boolean
+}
+
+/** Logged resistance: one card per exercise; each set tracked separately. */
+export interface ResistanceBlockLog {
+  blockId: string
+  type: 'resistance'
+  exerciseId: string
+  exerciseName: string
+  sets: LoggedResistanceSet[]
 }
 
 export interface ActivityBlockLog {

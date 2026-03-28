@@ -1,24 +1,54 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { DailyRoutine, Program } from '../types'
-import { deleteProgram, getProgram, newId, saveProgram } from '../db/repo'
+import type { DailyRoutine, Program, WorkoutSession } from '../types'
+import {
+  deleteProgram,
+  getProgram,
+  listSessionsForProgram,
+  newId,
+  saveProgram,
+} from '../db/repo'
 import { Button } from '../components/Button'
+
+function formatWhen(ts: number): string {
+  return new Date(ts).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
 
 export function ProgramEditorPage() {
   const { programId } = useParams()
   const navigate = useNavigate()
   const [program, setProgram] = useState<Program | null>(null)
+  const [sessions, setSessions] = useState<WorkoutSession[]>([])
   const [loading, setLoading] = useState(true)
   const [nameDraft, setNameDraft] = useState('')
 
   const load = useCallback(async () => {
     if (!programId) return
     setLoading(true)
-    const p = await getProgram(programId)
+    const [p, s] = await Promise.all([
+      getProgram(programId),
+      listSessionsForProgram(programId),
+    ])
     setProgram(p ?? null)
+    setSessions(s)
     if (p) setNameDraft(p.name)
     setLoading(false)
   }, [programId])
+
+  const lastSessionAtByDayId = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const ses of sessions) {
+      const t = ses.completedAt ?? ses.createdAt
+      const prev = m.get(ses.dayId)
+      if (prev === undefined || t > prev) m.set(ses.dayId, t)
+    }
+    return m
+  }, [sessions])
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -151,7 +181,9 @@ export function ProgramEditorPage() {
       </div>
 
       <ul className="mt-3 space-y-2">
-        {program.days.map((d, i) => (
+        {program.days.map((d, i) => {
+          const lastAt = lastSessionAtByDayId.get(d.id)
+          return (
           <li
             key={d.id}
             className="rounded-xl border border-slate-800 bg-slate-900/50 p-3"
@@ -181,6 +213,14 @@ export function ProgramEditorPage() {
                 </Button>
               </div>
             </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Last session
+              {lastAt != null ? (
+                <> · {formatWhen(lastAt)}</>
+              ) : (
+                <span className="text-slate-600"> · —</span>
+              )}
+            </p>
             <div className="mt-2 flex flex-wrap gap-2">
               <Link
                 to={`/programs/${program.id}/days/${d.id}`}
@@ -197,13 +237,39 @@ export function ProgramEditorPage() {
               </Button>
             </div>
           </li>
-        ))}
+          )
+        })}
         {program.days.length === 0 && (
           <li className="rounded-xl border border-dashed border-slate-800 py-8 text-center text-sm text-slate-500">
             No days yet. Add a day to build a routine.
           </li>
         )}
       </ul>
+
+      {sessions.length > 0 && (
+        <>
+          <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Recent sessions
+          </h2>
+          <ul className="mt-3 space-y-2">
+            {sessions.slice(0, 20).map((ses) => (
+              <li key={ses.id}>
+                <Link
+                  to={`/programs/${program.id}/sessions/${ses.id}`}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-xl border border-slate-800 bg-slate-900/30 px-4 py-3 text-sm hover:border-slate-700"
+                >
+                  <span className="min-w-0 truncate text-slate-200">
+                    {ses.dayLabel}
+                  </span>
+                  <span className="shrink-0 text-xs text-slate-500">
+                    {formatWhen(ses.completedAt ?? ses.createdAt)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   )
 }

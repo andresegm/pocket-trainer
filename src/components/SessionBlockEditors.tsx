@@ -2,8 +2,10 @@ import type { ReactNode } from 'react'
 import type {
   ActivityBlockLog,
   BlockSessionLog,
+  LoggedResistanceSet,
   ResistanceBlockLog,
 } from '../types'
+import { newId } from '../db/repo'
 import { Button } from './Button'
 
 function updateResistanceLog(
@@ -26,6 +28,18 @@ function updateActivityLog(
     if (b.blockId !== blockId || b.type !== 'activity') return b
     return updater(b)
   })
+}
+
+function emptySetFrom(last?: LoggedResistanceSet): LoggedResistanceSet {
+  return {
+    id: newId(),
+    reps: last?.reps,
+    weight: last?.weight,
+    tempo: last?.tempo,
+    intensity: last?.intensity,
+    restSec: last?.restSec,
+    done: false,
+  }
 }
 
 export function SessionBlockEditors({
@@ -58,172 +72,250 @@ export function SessionBlockEditors({
                 <span className="text-xs text-slate-500">Resistance</span>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
-                  <label className="flex items-center gap-2 text-sm text-slate-400">
-                    Sets
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
-                      value={bl.setCount}
-                      onChange={(e) => {
-                        const n = Number(e.target.value)
-                        const setCount =
-                          Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1
-                        onChange(
-                          updateResistanceLog(
-                            blocks,
-                            bl.blockId,
-                            (b) => ({ ...b, setCount }),
-                          ),
-                        )
-                      }}
-                    />
-                  </label>
+                <p className="mb-4 text-xs text-slate-500">
+                  Log each set separately—reps and weight can differ if you
+                  fatigue or overshoot.
+                </p>
+                <div className="space-y-3">
+                  {bl.sets.map((set, i) => (
+                    <div
+                      key={set.id}
+                      className="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+                    >
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-slate-500">
+                          Set {i + 1}
+                        </span>
+                        <Button
+                          type="button"
+                          variant={set.done ? 'secondary' : 'primary'}
+                          className="px-3 py-1.5 text-xs"
+                          onClick={() =>
+                            onChange(
+                              updateResistanceLog(
+                                blocks,
+                                bl.blockId,
+                                (b) => ({
+                                  ...b,
+                                  sets: b.sets.map((s) =>
+                                    s.id === set.id
+                                      ? { ...s, done: !s.done }
+                                      : s,
+                                  ),
+                                }),
+                              ),
+                            )
+                          }
+                        >
+                          {set.done ? 'Done — tap to undo' : 'Mark done'}
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        <Field
+                          label="Reps"
+                          input={
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              className="mt-0.5 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm"
+                              value={set.reps ?? ''}
+                              onChange={(e) =>
+                                onChange(
+                                  updateResistanceLog(
+                                    blocks,
+                                    bl.blockId,
+                                    (b) => ({
+                                      ...b,
+                                      sets: b.sets.map((s) =>
+                                        s.id === set.id
+                                          ? {
+                                              ...s,
+                                              reps:
+                                                e.target.value === ''
+                                                  ? undefined
+                                                  : Number(e.target.value),
+                                            }
+                                          : s,
+                                      ),
+                                    }),
+                                  ),
+                                )
+                              }
+                            />
+                          }
+                        />
+                        <Field
+                          label="Weight"
+                          input={
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              className="mt-0.5 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm"
+                              value={set.weight ?? ''}
+                              onChange={(e) =>
+                                onChange(
+                                  updateResistanceLog(
+                                    blocks,
+                                    bl.blockId,
+                                    (b) => ({
+                                      ...b,
+                                      sets: b.sets.map((s) =>
+                                        s.id === set.id
+                                          ? {
+                                              ...s,
+                                              weight:
+                                                e.target.value === ''
+                                                  ? undefined
+                                                  : Number(e.target.value),
+                                            }
+                                          : s,
+                                      ),
+                                    }),
+                                  ),
+                                )
+                              }
+                            />
+                          }
+                        />
+                        <Field
+                          label="Tempo"
+                          input={
+                            <input
+                              type="text"
+                              className="mt-0.5 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm"
+                              value={set.tempo ?? ''}
+                              onChange={(e) =>
+                                onChange(
+                                  updateResistanceLog(
+                                    blocks,
+                                    bl.blockId,
+                                    (b) => ({
+                                      ...b,
+                                      sets: b.sets.map((s) =>
+                                        s.id === set.id
+                                          ? {
+                                              ...s,
+                                              tempo:
+                                                e.target.value || undefined,
+                                            }
+                                          : s,
+                                      ),
+                                    }),
+                                  ),
+                                )
+                              }
+                            />
+                          }
+                        />
+                        <Field
+                          label="Intensity"
+                          input={
+                            <input
+                              type="text"
+                              className="mt-0.5 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm"
+                              value={set.intensity ?? ''}
+                              onChange={(e) =>
+                                onChange(
+                                  updateResistanceLog(
+                                    blocks,
+                                    bl.blockId,
+                                    (b) => ({
+                                      ...b,
+                                      sets: b.sets.map((s) =>
+                                        s.id === set.id
+                                          ? {
+                                              ...s,
+                                              intensity:
+                                                e.target.value || undefined,
+                                            }
+                                          : s,
+                                      ),
+                                    }),
+                                  ),
+                                )
+                              }
+                            />
+                          }
+                        />
+                        <Field
+                          label="Rest (sec)"
+                          input={
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              className="mt-0.5 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm"
+                              value={set.restSec ?? ''}
+                              onChange={(e) =>
+                                onChange(
+                                  updateResistanceLog(
+                                    blocks,
+                                    bl.blockId,
+                                    (b) => ({
+                                      ...b,
+                                      sets: b.sets.map((s) =>
+                                        s.id === set.id
+                                          ? {
+                                              ...s,
+                                              restSec:
+                                                e.target.value === ''
+                                                  ? undefined
+                                                  : Number(e.target.value),
+                                            }
+                                          : s,
+                                      ),
+                                    }),
+                                  ),
+                                )
+                              }
+                            />
+                          }
+                        />
+                      </div>
+                      {bl.sets.length > 1 && (
+                        <div className="mt-2 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-xs text-slate-400"
+                            onClick={() =>
+                              onChange(
+                                updateResistanceLog(
+                                  blocks,
+                                  bl.blockId,
+                                  (b) => ({
+                                    ...b,
+                                    sets: b.sets.filter((s) => s.id !== set.id),
+                                  }),
+                                ),
+                              )
+                            }
+                          >
+                            Remove set
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3">
                   <Button
+                    variant="secondary"
+                    className="w-full text-sm"
                     type="button"
-                    variant={bl.done ? 'secondary' : 'primary'}
-                    className="shrink-0 px-4 py-2 text-sm"
                     onClick={() =>
                       onChange(
-                        updateResistanceLog(
-                          blocks,
-                          bl.blockId,
-                          (b) => ({ ...b, done: !b.done }),
-                        ),
+                        updateResistanceLog(blocks, bl.blockId, (b) => ({
+                          ...b,
+                          sets: [
+                            ...b.sets,
+                            emptySetFrom(b.sets[b.sets.length - 1]),
+                          ],
+                        })),
                       )
                     }
                   >
-                    {bl.done ? 'Done' : 'Mark done'}
+                    Add set
                   </Button>
-                </div>
-                <p className="mb-3 text-xs text-slate-500">
-                  Same reps, weight, tempo, intensity, and rest for every set.
-                </p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <Field
-                    label="Reps"
-                    input={
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        className="mt-0.5 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm"
-                        value={bl.reps ?? ''}
-                        onChange={(e) =>
-                          onChange(
-                            updateResistanceLog(
-                              blocks,
-                              bl.blockId,
-                              (b) => ({
-                                ...b,
-                                reps:
-                                  e.target.value === ''
-                                    ? undefined
-                                    : Number(e.target.value),
-                              }),
-                            ),
-                          )
-                        }
-                      />
-                    }
-                  />
-                  <Field
-                    label="Weight"
-                    input={
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        className="mt-0.5 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm"
-                        value={bl.weight ?? ''}
-                        onChange={(e) =>
-                          onChange(
-                            updateResistanceLog(
-                              blocks,
-                              bl.blockId,
-                              (b) => ({
-                                ...b,
-                                weight:
-                                  e.target.value === ''
-                                    ? undefined
-                                    : Number(e.target.value),
-                              }),
-                            ),
-                          )
-                        }
-                      />
-                    }
-                  />
-                  <Field
-                    label="Tempo"
-                    input={
-                      <input
-                        type="text"
-                        className="mt-0.5 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm"
-                        value={bl.tempo ?? ''}
-                        onChange={(e) =>
-                          onChange(
-                            updateResistanceLog(
-                              blocks,
-                              bl.blockId,
-                              (b) => ({
-                                ...b,
-                                tempo: e.target.value || undefined,
-                              }),
-                            ),
-                          )
-                        }
-                      />
-                    }
-                  />
-                  <Field
-                    label="Intensity"
-                    input={
-                      <input
-                        type="text"
-                        className="mt-0.5 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm"
-                        value={bl.intensity ?? ''}
-                        onChange={(e) =>
-                          onChange(
-                            updateResistanceLog(
-                              blocks,
-                              bl.blockId,
-                              (b) => ({
-                                ...b,
-                                intensity: e.target.value || undefined,
-                              }),
-                            ),
-                          )
-                        }
-                      />
-                    }
-                  />
-                  <Field
-                    label="Rest (sec)"
-                    input={
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        className="mt-0.5 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm"
-                        value={bl.restSec ?? ''}
-                        onChange={(e) =>
-                          onChange(
-                            updateResistanceLog(
-                              blocks,
-                              bl.blockId,
-                              (b) => ({
-                                ...b,
-                                restSec:
-                                  e.target.value === ''
-                                    ? undefined
-                                    : Number(e.target.value),
-                              }),
-                            ),
-                          )
-                        }
-                      />
-                    }
-                  />
                 </div>
               </div>
             </div>

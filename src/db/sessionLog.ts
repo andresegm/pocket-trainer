@@ -1,10 +1,36 @@
-import type { BlockSessionLog, DailyRoutine, Exercise } from '../types'
+import type {
+  BlockSessionLog,
+  DailyRoutine,
+  Exercise,
+  LoggedResistanceSet,
+} from '../types'
+import { newId } from './repo'
 
 export function exerciseNameMap(exercises: Exercise[]): Map<string, string> {
   return new Map(exercises.map((e) => [e.id, e.name]))
 }
 
-/** Build session logs from the current day template (planned values as starting point). */
+function templateSetsFromBlock(block: {
+  setCount: number
+  reps?: number
+  weight?: number
+  tempo?: string
+  intensity?: string
+  restSec?: number
+}): LoggedResistanceSet[] {
+  const n = Math.max(1, block.setCount)
+  return Array.from({ length: n }, () => ({
+    id: newId(),
+    reps: block.reps,
+    weight: block.weight,
+    tempo: block.tempo,
+    intensity: block.intensity,
+    restSec: block.restSec,
+    done: false,
+  }))
+}
+
+/** Build session logs from the current day template (planned values per set as defaults). */
 export function logsFromRoutine(
   day: DailyRoutine,
   names: Map<string, string>,
@@ -17,13 +43,7 @@ export function logsFromRoutine(
         type: 'resistance',
         exerciseId: block.exerciseId,
         exerciseName,
-        setCount: Math.max(1, block.setCount),
-        reps: block.reps,
-        weight: block.weight,
-        tempo: block.tempo,
-        intensity: block.intensity,
-        restSec: block.restSec,
-        done: false,
+        sets: templateSetsFromBlock(block),
       } satisfies BlockSessionLog
     }
     return {

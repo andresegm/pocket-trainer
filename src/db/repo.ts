@@ -1,4 +1,5 @@
 import type { Exercise, ExerciseKind, Program, WorkoutSession } from '../types'
+import { normalizeWorkoutSession } from './normalizeWorkoutSession'
 import { db } from './schema'
 import { isSeedExerciseId } from './seed'
 
@@ -70,7 +71,8 @@ export async function saveWorkoutSession(session: WorkoutSession): Promise<void>
 export async function getWorkoutSession(
   id: string,
 ): Promise<WorkoutSession | undefined> {
-  return db.sessions.get(id)
+  const s = await db.sessions.get(id)
+  return s ? normalizeWorkoutSession(s) : undefined
 }
 
 export async function deleteWorkoutSession(id: string): Promise<void> {
@@ -88,7 +90,7 @@ export async function listSessionsForProgram(
     .where('programId')
     .equals(programId)
     .sortBy('createdAt')
-    .then((rows) => rows.reverse())
+    .then((rows) => rows.reverse().map(normalizeWorkoutSession))
 }
 
 export async function listSessionsForProgramDay(

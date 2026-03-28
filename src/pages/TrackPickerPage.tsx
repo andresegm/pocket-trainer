@@ -36,13 +36,18 @@ export function TrackPickerPage() {
     return () => cancelAnimationFrame(id)
   }, [load])
 
+  const completedSessions = useMemo(
+    () => sessions.filter((s) => s.completedAt != null),
+    [sessions],
+  )
+
   const countByDay = useMemo(() => {
     const m = new Map<string, number>()
-    for (const ses of sessions) {
+    for (const ses of completedSessions) {
       m.set(ses.dayId, (m.get(ses.dayId) ?? 0) + 1)
     }
     return m
-  }, [sessions])
+  }, [completedSessions])
 
   if (loading) {
     return (
@@ -113,13 +118,13 @@ export function TrackPickerPage() {
         )}
       </ul>
 
-      {sessions.length > 0 && (
+      {completedSessions.length > 0 && (
         <>
           <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-slate-500">
             Recent sessions
           </h2>
           <ul className="mt-3 space-y-2">
-            {sessions.slice(0, 20).map((ses) => (
+            {completedSessions.slice(0, 20).map((ses) => (
               <li key={ses.id}>
                 <Link
                   to={`/programs/${program.id}/sessions/${ses.id}`}
@@ -129,7 +134,7 @@ export function TrackPickerPage() {
                     {ses.dayLabel}
                   </span>
                   <span className="shrink-0 text-xs text-slate-500">
-                    {formatWhen(ses.completedAt ?? ses.createdAt)}
+                    {formatWhen(ses.completedAt!)}
                   </span>
                 </Link>
               </li>

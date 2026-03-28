@@ -21,8 +21,8 @@ export function computeProgramStreak(
   const dates = new Set<string>()
   for (const s of sessions) {
     if (s.programId !== programId) continue
-    const t = s.completedAt ?? s.createdAt
-    dates.add(formatLocalYmd(new Date(t)))
+    if (s.completedAt == null) continue
+    dates.add(formatLocalYmd(new Date(s.completedAt)))
   }
   if (dates.size === 0) return 0
 

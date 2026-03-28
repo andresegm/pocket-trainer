@@ -101,6 +101,30 @@ export async function listSessionsForProgramDay(
   return all.filter((s) => s.dayId === dayId)
 }
 
+/** In-progress workouts (no completedAt) for this day, newest first. */
+export async function listIncompleteSessionsForProgramDay(
+  programId: string,
+  dayId: string,
+): Promise<WorkoutSession[]> {
+  const rows = await listSessionsForProgramDay(programId, dayId)
+  return rows
+    .filter((s) => s.completedAt == null)
+    .sort((a, b) => b.createdAt - a.createdAt)
+}
+
+/** Most recent finished session for this program day, for copying last weights/reps. */
+export async function getLastCompletedSessionForProgramDay(
+  programId: string,
+  dayId: string,
+): Promise<WorkoutSession | undefined> {
+  const rows = await listSessionsForProgramDay(programId, dayId)
+  const completed = rows.filter((s) => s.completedAt != null)
+  if (completed.length === 0) return undefined
+  return completed.reduce((best, s) =>
+    (s.completedAt ?? 0) > (best.completedAt ?? 0) ? s : best,
+  )
+}
+
 export async function createProgram(name: string): Promise<Program> {
   const p: Program = {
     id: newId(),

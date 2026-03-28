@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type {
   ActivityBlockLog,
   BlockSessionLog,
@@ -7,6 +7,16 @@ import type {
 } from '../types'
 import { newId } from '../db/repo'
 import { Button } from './Button'
+
+export type SessionWorkoutAssist = {
+  lastResistanceSetsByBlockId: Map<string, LoggedResistanceSet[]>
+  onCopyLastResistance: (blockId: string) => void
+  lastActivityFieldsByBlockId: Map<
+    string,
+    { durationMin?: number; lengthKm?: number; notes?: string }
+  >
+  onCopyLastActivity: (blockId: string) => void
+}
 
 function updateResistanceLog(
   blocks: BlockSessionLog[],
@@ -45,10 +55,25 @@ function emptySetFrom(last?: LoggedResistanceSet): LoggedResistanceSet {
 export function SessionBlockEditors({
   blocks,
   onChange,
+  workoutAssist,
 }: {
   blocks: BlockSessionLog[]
   onChange: (next: BlockSessionLog[]) => void
+  workoutAssist?: SessionWorkoutAssist
 }) {
+  const [restRemaining, setRestRemaining] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (restRemaining === null || restRemaining <= 0) return
+    const id = window.setInterval(() => {
+      setRestRemaining((r) => {
+        if (r === null || r <= 1) return null
+        return r - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [restRemaining])
+
   if (blocks.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-slate-800 py-8 text-center text-sm text-slate-500">
@@ -58,6 +83,27 @@ export function SessionBlockEditors({
   }
 
   return (
+    <>
+      {restRemaining !== null && restRemaining >= 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-700 bg-slate-900/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.35)] backdrop-blur-sm">
+          <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
+            <span className="text-sm text-slate-200">
+              Rest{' '}
+              <strong className="text-teal-300">
+                {restRemaining > 0 ? `${restRemaining}s` : '0s'}
+              </strong>
+            </span>
+            <Button
+              type="button"
+              variant="secondary"
+              className="text-xs"
+              onClick={() => setRestRemaining(null)}
+            >
+              Skip
+            </Button>
+          </div>
+        </div>
+      )}
     <div className="space-y-8">
       {blocks.map((block, blockIndex) => {
         if (block.type === 'resistance') {
@@ -72,10 +118,26 @@ export function SessionBlockEditors({
                 <span className="text-xs text-slate-500">Resistance</span>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
-                <p className="mb-4 text-xs text-slate-500">
+                <p className="mb-3 text-xs text-slate-500">
                   Log each set separately—reps and weight can differ if you
                   fatigue or overshoot.
                 </p>
+                {workoutAssist &&
+                  (workoutAssist.lastResistanceSetsByBlockId.get(bl.blockId)
+                    ?.length ?? 0) > 0 && (
+                    <div className="mb-4 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="text-xs"
+                        onClick={() =>
+                          workoutAssist.onCopyLastResistance(bl.blockId)
+                        }
+                      >
+                        Copy last session
+                      </Button>
+                    </div>
+                  )}
                 <div className="space-y-3">
                   {bl.sets.map((set, i) => (
                     <div
@@ -83,14 +145,53 @@ export function SessionBlockEditors({
                       className="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
                     >
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs font-medium text-slate-500">
-                          Set {i + 1}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-medium text-slate-500">
+                            Set {i + 1}
+                          </span>
+                          {i > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="px-2 py-1 text-xs text-teal-400/90"
+                              onClick={() =>
+                                onChange(
+                                  updateResistanceLog(
+                                    blocks,
+                                    bl.blockId,
+                                    (b) => {
+                                      const prev = b.sets[i - 1]
+                                      return {
+                                        ...b,
+                                        sets: b.sets.map((s, j) =>
+                                          j === i
+                                            ? {
+                                                ...s,
+                                                reps: prev.reps,
+                                                weight: prev.weight,
+                                                tempo: prev.tempo,
+                                                intensity: prev.intensity,
+                                                restSec: prev.restSec,
+                                              }
+                                            : s,
+                                        ),
+                                      }
+                                    },
+                                  ),
+                                )
+                              }
+                            >
+                              Same as set {i}
+                            </Button>
+                          )}
+                        </div>
                         <Button
                           type="button"
                           variant={set.done ? 'secondary' : 'primary'}
                           className="px-3 py-1.5 text-xs"
-                          onClick={() =>
+                          onClick={() => {
+                            const willComplete = !set.done
+                            const sec = set.restSec
                             onChange(
                               updateResistanceLog(
                                 blocks,
@@ -105,7 +206,14 @@ export function SessionBlockEditors({
                                 }),
                               ),
                             )
-                          }
+                            if (
+                              willComplete &&
+                              typeof sec === 'number' &&
+                              sec >= 1
+                            ) {
+                              setRestRemaining(Math.floor(sec))
+                            }
+                          }}
                         >
                           {set.done ? 'Done — tap to undo' : 'Mark done'}
                         </Button>
@@ -333,7 +441,7 @@ export function SessionBlockEditors({
               <span className="text-xs text-slate-500">Activity</span>
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-slate-500">
                   Log duration, distance, and notes when you finish.
                 </p>
@@ -353,6 +461,22 @@ export function SessionBlockEditors({
                   {act.done ? 'Done — tap to undo' : 'Mark done'}
                 </Button>
               </div>
+              {workoutAssist?.lastActivityFieldsByBlockId.has(
+                act.blockId,
+              ) && (
+                <div className="mb-3 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="text-xs"
+                    onClick={() =>
+                      workoutAssist.onCopyLastActivity(act.blockId)
+                    }
+                  >
+                    Copy last session
+                  </Button>
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="text-sm text-slate-400">
                   Duration (minutes)
@@ -415,6 +539,7 @@ export function SessionBlockEditors({
         )
       })}
     </div>
+    </>
   )
 }
 

@@ -77,6 +77,10 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
   await db.sessions.delete(id)
 }
 
+export async function listAllSessions(): Promise<WorkoutSession[]> {
+  return db.sessions.orderBy('createdAt').reverse().toArray()
+}
+
 export async function listSessionsForProgram(
   programId: string,
 ): Promise<WorkoutSession[]> {

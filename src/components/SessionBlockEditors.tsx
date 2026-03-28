@@ -333,6 +333,26 @@ export function SessionBlockEditors({
               <span className="text-xs text-slate-500">Activity</span>
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">
+                  Log duration, distance, and notes when you finish.
+                </p>
+                <Button
+                  type="button"
+                  variant={act.done ? 'secondary' : 'primary'}
+                  className="px-3 py-1.5 text-xs"
+                  onClick={() =>
+                    onChange(
+                      updateActivityLog(blocks, act.blockId, (b) => ({
+                        ...b,
+                        done: !b.done,
+                      })),
+                    )
+                  }
+                >
+                  {act.done ? 'Done — tap to undo' : 'Mark done'}
+                </Button>
+              </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="text-sm text-slate-400">
                   Duration (minutes)

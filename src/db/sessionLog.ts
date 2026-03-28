@@ -54,6 +54,7 @@ export function logsFromRoutine(
       durationMin: block.durationMin,
       lengthKm: block.lengthKm,
       notes: block.notes,
+      done: false,
     } satisfies BlockSessionLog
   })
 }

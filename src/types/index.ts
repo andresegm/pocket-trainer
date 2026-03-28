@@ -77,6 +77,7 @@ export interface ActivityBlockLog {
   durationMin?: number
   lengthKm?: number
   notes?: string
+  done?: boolean
 }
 
 export type BlockSessionLog = ResistanceBlockLog | ActivityBlockLog

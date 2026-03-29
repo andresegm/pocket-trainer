@@ -160,6 +160,7 @@ export function WorkoutTrackPage() {
           if (b.blockId !== blockId || b.type !== 'resistance') return b
           return {
             ...b,
+            skipped: false,
             sets: sets.map((s) => ({
               ...s,
               id: newId(),
@@ -183,6 +184,7 @@ export function WorkoutTrackPage() {
           ...a,
           ...snap,
           done: false,
+          skipped: false,
         }
       }),
     )

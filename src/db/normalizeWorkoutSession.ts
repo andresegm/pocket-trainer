@@ -27,6 +27,7 @@ function normalizeResistanceBlock(b: BlockSessionLog): BlockSessionLog {
       exerciseId: r.exerciseId,
       exerciseName: r.exerciseName,
       sets: r.sets,
+      skipped: r.skipped,
     }
   }
   const count = Math.max(1, typeof r.setCount === 'number' ? r.setCount : 1)
@@ -45,6 +46,7 @@ function normalizeResistanceBlock(b: BlockSessionLog): BlockSessionLog {
     exerciseId: r.exerciseId,
     exerciseName: r.exerciseName,
     sets,
+    skipped: r.skipped,
   }
 }
 

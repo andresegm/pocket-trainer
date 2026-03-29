@@ -30,6 +30,15 @@ function formatResistanceSnapshot(s: LoggedResistanceSet | undefined): string {
   return parts.join(' · ')
 }
 
+function formatActivitySnapshot(a: ActivityBlockLog): string {
+  const parts: string[] = []
+  if (a.durationMin != null) parts.push(`${a.durationMin} min`)
+  if (a.lengthKm != null) parts.push(`${a.lengthKm} km`)
+  const n = a.notes?.trim()
+  if (n) parts.push(n.length > 48 ? `${n.slice(0, 48)}…` : n)
+  return parts.join(' · ') || 'Logged'
+}
+
 function updateResistanceLog(
   blocks: BlockSessionLog[],
   blockId: string,
@@ -77,6 +86,10 @@ export function SessionBlockEditors({
   const [expandedDoneSetIds, setExpandedDoneSetIds] = useState<Set<string>>(
     () => new Set(),
   )
+  /** Whole-block expand: skipped resistance, or done/skipped activity. */
+  const [expandedBlockDetailIds, setExpandedBlockDetailIds] = useState<
+    Set<string>
+  >(() => new Set())
 
   useEffect(() => {
     if (restRemaining === null || restRemaining <= 0) return
@@ -114,7 +127,7 @@ export function SessionBlockEditors({
               className="text-xs"
               onClick={() => setRestRemaining(null)}
             >
-              Skip
+              Dismiss
             </Button>
           </div>
         </div>
@@ -123,6 +136,44 @@ export function SessionBlockEditors({
       {blocks.map((block, blockIndex) => {
         if (block.type === 'resistance') {
           const bl = block as ResistanceBlockLog
+          const resistanceSkippedCollapsed =
+            bl.skipped && !expandedBlockDetailIds.has(bl.blockId)
+
+          if (resistanceSkippedCollapsed) {
+            return (
+              <div key={bl.blockId} className="space-y-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-teal-300">
+                    <span className="text-slate-500">{blockIndex + 1}. </span>
+                    {bl.exerciseName}
+                  </h3>
+                  <span className="text-xs text-slate-500">Resistance</span>
+                </div>
+                <button
+                  type="button"
+                  className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-left"
+                  onClick={() =>
+                    setExpandedBlockDetailIds((prev) =>
+                      new Set(prev).add(bl.blockId),
+                    )
+                  }
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium text-amber-400/90">
+                      Skipped
+                    </div>
+                    <div className="mt-0.5 text-sm text-slate-300">
+                      Tap to view or unskip
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-slate-500" aria-hidden>
+                    ▾
+                  </span>
+                </button>
+              </div>
+            )
+          }
+
           return (
             <div key={bl.blockId} className="space-y-3">
               <div className="flex items-baseline justify-between gap-2">
@@ -133,26 +184,76 @@ export function SessionBlockEditors({
                 <span className="text-xs text-slate-500">Resistance</span>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
+                {bl.skipped ? (
+                  <div className="mb-3 flex justify-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="text-xs"
+                      onClick={() =>
+                        onChange(
+                          updateResistanceLog(blocks, bl.blockId, (b) => ({
+                            ...b,
+                            skipped: false,
+                          })),
+                        )
+                      }
+                    >
+                      Unskip
+                    </Button>
+                  </div>
+                ) : null}
                 <p className="mb-3 text-xs text-slate-500">
                   Log each set separately—reps and weight can differ if you
                   fatigue or overshoot.
                 </p>
-                {workoutAssist &&
+                <div className="mb-4 flex flex-wrap justify-end gap-2">
+                  {workoutAssist &&
                   (workoutAssist.lastResistanceSetsByBlockId.get(bl.blockId)
-                    ?.length ?? 0) > 0 && (
-                    <div className="mb-4 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="text-xs"
-                        onClick={() =>
-                          workoutAssist.onCopyLastResistance(bl.blockId)
-                        }
-                      >
-                        Copy last session
-                      </Button>
-                    </div>
-                  )}
+                    ?.length ?? 0) > 0 ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="text-xs"
+                      onClick={() =>
+                        workoutAssist.onCopyLastResistance(bl.blockId)
+                      }
+                    >
+                      Copy last session
+                    </Button>
+                  ) : null}
+                  {!bl.skipped ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="text-xs text-slate-400"
+                      onClick={() => {
+                        onChange(
+                          updateResistanceLog(blocks, bl.blockId, (b) => ({
+                            ...b,
+                            skipped: true,
+                            sets: b.sets.map((s) => ({
+                              ...s,
+                              done: false,
+                            })),
+                          })),
+                        )
+                        setExpandedBlockDetailIds((prev) => {
+                          const next = new Set(prev)
+                          next.delete(bl.blockId)
+                          return next
+                        })
+                        setExpandedDoneSetIds((prev) => {
+                          const next = new Set(prev)
+                          for (const s of bl.sets) next.delete(s.id)
+                          return next
+                        })
+                      }}
+                    >
+                      Skip exercise
+                    </Button>
+                  ) : null}
+                </div>
                 <div className="space-y-3">
                   {bl.sets.map((set, i) => {
                     const historySets =
@@ -224,6 +325,7 @@ export function SessionBlockEditors({
                                       const prev = b.sets[i - 1]
                                       return {
                                         ...b,
+                                        skipped: false,
                                         sets: b.sets.map((s, j) =>
                                           j === i
                                             ? {
@@ -281,6 +383,7 @@ export function SessionBlockEditors({
                                   bl.blockId,
                                   (b) => ({
                                     ...b,
+                                    skipped: willComplete ? false : b.skipped,
                                     sets: b.sets.map((s) =>
                                       s.id === set.id
                                         ? { ...s, done: !s.done }
@@ -504,6 +607,7 @@ export function SessionBlockEditors({
                       onChange(
                         updateResistanceLog(blocks, bl.blockId, (b) => ({
                           ...b,
+                          skipped: false,
                           sets: [
                             ...b.sets,
                             emptySetFrom(b.sets[b.sets.length - 1]),
@@ -521,6 +625,49 @@ export function SessionBlockEditors({
         }
 
         const act = block as ActivityBlockLog
+        const activityCollapsed =
+          (act.done || act.skipped) &&
+          !expandedBlockDetailIds.has(act.blockId)
+
+        if (activityCollapsed) {
+          return (
+            <div key={act.blockId} className="space-y-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="text-sm font-semibold text-teal-300">
+                  <span className="text-slate-500">{blockIndex + 1}. </span>
+                  {act.exerciseName}
+                </h3>
+                <span className="text-xs text-slate-500">Activity</span>
+              </div>
+              <button
+                type="button"
+                className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-left"
+                onClick={() =>
+                  setExpandedBlockDetailIds((prev) =>
+                    new Set(prev).add(act.blockId),
+                  )
+                }
+              >
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={`text-xs font-medium ${act.skipped ? 'text-amber-400/90' : 'text-slate-500'}`}
+                  >
+                    {act.skipped ? 'Skipped' : 'Done'}
+                  </div>
+                  <div className="mt-0.5 text-sm text-slate-200">
+                    {act.skipped
+                      ? 'Tap to view or unskip'
+                      : formatActivitySnapshot(act)}
+                  </div>
+                </div>
+                <span className="shrink-0 text-slate-500" aria-hidden>
+                  ▾
+                </span>
+              </button>
+            </div>
+          )
+        }
+
         return (
           <div key={act.blockId} className="space-y-3">
             <div className="flex items-baseline justify-between gap-2">
@@ -531,30 +678,51 @@ export function SessionBlockEditors({
               <span className="text-xs text-slate-500">Activity</span>
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              {act.skipped ? (
+                <div className="mb-3 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="text-xs"
+                    onClick={() =>
+                      onChange(
+                        updateActivityLog(blocks, act.blockId, (b) => ({
+                          ...b,
+                          skipped: false,
+                        })),
+                      )
+                    }
+                  >
+                    Unskip
+                  </Button>
+                </div>
+              ) : null}
+              <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <p className="text-xs text-slate-500">
                   Log duration, distance, and notes when you finish.
                 </p>
-                <Button
-                  type="button"
-                  variant={act.done ? 'secondary' : 'primary'}
-                  className="px-3 py-1.5 text-xs"
-                  onClick={() =>
-                    onChange(
-                      updateActivityLog(blocks, act.blockId, (b) => ({
-                        ...b,
-                        done: !b.done,
-                      })),
-                    )
-                  }
-                >
-                  {act.done ? 'Done — tap to undo' : 'Mark done'}
-                </Button>
+                {(act.done || act.skipped) &&
+                expandedBlockDetailIds.has(act.blockId) ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="shrink-0 self-end px-2 py-1 text-xs text-slate-400 sm:self-start"
+                    onClick={() =>
+                      setExpandedBlockDetailIds((prev) => {
+                        const next = new Set(prev)
+                        next.delete(act.blockId)
+                        return next
+                      })
+                    }
+                  >
+                    Collapse
+                  </Button>
+                ) : null}
               </div>
-              {workoutAssist?.lastActivityFieldsByBlockId.has(
-                act.blockId,
-              ) && (
-                <div className="mb-3 flex justify-end">
+              <div className="mb-4 flex flex-wrap justify-end gap-2">
+                {workoutAssist?.lastActivityFieldsByBlockId.has(
+                  act.blockId,
+                ) ? (
                   <Button
                     type="button"
                     variant="secondary"
@@ -565,8 +733,54 @@ export function SessionBlockEditors({
                   >
                     Copy last session
                   </Button>
-                </div>
-              )}
+                ) : null}
+                {!act.skipped ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="text-xs text-slate-400"
+                    onClick={() => {
+                      onChange(
+                        updateActivityLog(blocks, act.blockId, (b) => ({
+                          ...b,
+                          skipped: true,
+                          done: false,
+                        })),
+                      )
+                      setExpandedBlockDetailIds((prev) => {
+                        const next = new Set(prev)
+                        next.delete(act.blockId)
+                        return next
+                      })
+                    }}
+                  >
+                    Skip exercise
+                  </Button>
+                ) : null}
+              </div>
+              <div className="mb-3 flex justify-end">
+                <Button
+                  type="button"
+                  variant={act.done ? 'secondary' : 'primary'}
+                  className="px-3 py-1.5 text-xs whitespace-nowrap"
+                  onClick={() => {
+                    onChange(
+                      updateActivityLog(blocks, act.blockId, (b) => ({
+                        ...b,
+                        done: !b.done,
+                        skipped: false,
+                      })),
+                    )
+                    setExpandedBlockDetailIds((prev) => {
+                      const next = new Set(prev)
+                      next.delete(act.blockId)
+                      return next
+                    })
+                  }}
+                >
+                  {act.done ? 'Done — tap to undo' : 'Mark done'}
+                </Button>
+              </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="text-sm text-slate-400">
                   Duration (minutes)

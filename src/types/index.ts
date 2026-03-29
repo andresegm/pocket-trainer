@@ -67,6 +67,8 @@ export interface ResistanceBlockLog {
   exerciseId: string
   exerciseName: string
   sets: LoggedResistanceSet[]
+  /** Skipped exercises count toward day progress without logging sets. */
+  skipped?: boolean
 }
 
 export interface ActivityBlockLog {
@@ -78,6 +80,7 @@ export interface ActivityBlockLog {
   lengthKm?: number
   notes?: string
   done?: boolean
+  skipped?: boolean
 }
 
 export type BlockSessionLog = ResistanceBlockLog | ActivityBlockLog

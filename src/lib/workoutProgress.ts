@@ -13,7 +13,9 @@ export function computeWorkoutProgress(
   for (const b of blocks) {
     if (b.type === 'resistance') {
       const r = b as ResistanceBlockLog
-      if (
+      if (r.skipped) {
+        done++
+      } else if (
         r.sets.length > 0 &&
         r.sets.every((s) => s.done)
       ) {
@@ -21,7 +23,7 @@ export function computeWorkoutProgress(
       }
     } else {
       const a = b as ActivityBlockLog
-      if (a.done) done++
+      if (a.skipped || a.done) done++
     }
   }
   return { done, total }

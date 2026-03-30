@@ -27,6 +27,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(true)
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear())
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth())
+  const [todayKey] = useState(() => localDateKey(Date.now()))
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -85,8 +86,6 @@ export function HomePage() {
     setViewYear(d.getFullYear())
     setViewMonth(d.getMonth())
   }
-
-  const todayKey = localDateKey(Date.now())
 
   return (
     <div className="mx-auto max-w-lg px-4 pt-6 pb-8">

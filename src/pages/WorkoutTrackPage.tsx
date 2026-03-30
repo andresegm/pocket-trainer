@@ -226,7 +226,27 @@ export function WorkoutTrackPage() {
     }
   }, [blocks, notes, program, day, sessionId, loading])
 
+  async function onCancel() {
+    if (!program || !sessionId) return
+    if (
+      !window.confirm(
+        'Are you sure you want to cancel? All progress will be lost (session is erased).',
+      )
+    ) {
+      return
+    }
+    await deleteWorkoutSession(sessionId)
+    navigate(`/programs/${program.id}/track`)
+  }
+
   async function onSave() {
+    if (
+      !window.confirm(
+        'Finish session? The session will be saved.',
+      )
+    ) {
+      return
+    }
     if (!program || !day || !programId || !sessionId) return
     setSaving(true)
     try {
@@ -303,8 +323,9 @@ export function WorkoutTrackPage() {
         </p>
       )}
       <p className="mt-1 text-sm text-slate-500">
-        Log what you did. Your work is saved automatically; tap Save session
-        when you are finished.
+        Your work is saved automatically as you go. You can leave and resume
+        later from the track page. Tap Save session when you are finished, or
+        Cancel to erase this draft.
       </p>
 
       <div
@@ -366,11 +387,15 @@ export function WorkoutTrackPage() {
         >
           {saving ? 'Saving…' : 'Save session'}
         </Button>
-        <Link to={`/programs/${program.id}/track`} className="flex-1">
-          <Button variant="secondary" className="w-full" type="button">
-            Cancel
-          </Button>
-        </Link>
+        <Button
+          variant="secondary"
+          className="flex-1"
+          type="button"
+          disabled={saving}
+          onClick={() => void onCancel()}
+        >
+          Cancel
+        </Button>
       </div>
     </div>
   )

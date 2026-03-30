@@ -121,6 +121,16 @@ export async function listIncompleteSessionsForProgramDay(
     .sort((a, b) => b.createdAt - a.createdAt)
 }
 
+/** All in-progress sessions for a program (any day), newest first. */
+export async function listIncompleteSessionsForProgram(
+  programId: string,
+): Promise<WorkoutSession[]> {
+  const all = await listSessionsForProgram(programId)
+  return all
+    .filter((s) => s.completedAt == null)
+    .sort((a, b) => b.createdAt - a.createdAt)
+}
+
 /** Most recent finished session for this program day, for copying last weights/reps. */
 export async function getLastCompletedSessionForProgramDay(
   programId: string,

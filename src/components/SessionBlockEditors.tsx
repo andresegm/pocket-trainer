@@ -83,13 +83,27 @@ export function SessionBlockEditors({
   workoutAssist?: SessionWorkoutAssist
 }) {
   const [restRemaining, setRestRemaining] = useState<number | null>(null)
-  const [expandedDoneSetIds, setExpandedDoneSetIds] = useState<Set<string>>(
+  /** Set ids showing a compact row (manual or auto after marking done). */
+  const [collapsedSetIds, setCollapsedSetIds] = useState<Set<string>>(
     () => new Set(),
   )
-  /** Whole-block expand: skipped resistance, or done/skipped activity. */
+  /** Whole-block expand: skipped resistance, or done/skipped activity detail. */
   const [expandedBlockDetailIds, setExpandedBlockDetailIds] = useState<
     Set<string>
   >(() => new Set())
+  /** Exercise/activity body hidden (block-level). */
+  const [collapsedExerciseBlockIds, setCollapsedExerciseBlockIds] = useState<
+    Set<string>
+  >(() => new Set())
+
+  function toggleExerciseBlockCollapsed(blockId: string) {
+    setCollapsedExerciseBlockIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(blockId)) next.delete(blockId)
+      else next.add(blockId)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (restRemaining === null || restRemaining <= 0) return
@@ -113,22 +127,32 @@ export function SessionBlockEditors({
   return (
     <>
       {restRemaining !== null && restRemaining >= 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-700 bg-slate-900/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.35)] backdrop-blur-sm">
-          <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
-            <span className="text-sm text-slate-200">
-              Rest{' '}
-              <strong className="text-teal-300">
-                {restRemaining > 0 ? `${restRemaining}s` : '0s'}
-              </strong>
-            </span>
-            <Button
-              type="button"
-              variant="secondary"
-              className="text-xs"
-              onClick={() => setRestRemaining(null)}
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rest-timer-title"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 px-6 py-6 shadow-[0_16px_48px_rgba(0,0,0,0.45)]">
+            <h2
+              id="rest-timer-title"
+              className="text-center text-sm font-medium text-slate-400"
             >
-              Dismiss
-            </Button>
+              Rest
+            </h2>
+            <p className="mt-3 text-center text-4xl font-semibold tabular-nums text-teal-300">
+              {restRemaining > 0 ? `${restRemaining}s` : '0s'}
+            </p>
+            <div className="mt-6 flex justify-center">
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-w-[8rem]"
+                onClick={() => setRestRemaining(null)}
+              >
+                Dismiss
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -136,54 +160,73 @@ export function SessionBlockEditors({
       {blocks.map((block, blockIndex) => {
         if (block.type === 'resistance') {
           const bl = block as ResistanceBlockLog
-          const resistanceSkippedCollapsed =
+          const resistanceBodyCollapsed =
+            collapsedExerciseBlockIds.has(bl.blockId)
+          const resistanceSkippedInnerCollapsed =
             bl.skipped && !expandedBlockDetailIds.has(bl.blockId)
 
-          if (resistanceSkippedCollapsed) {
-            return (
-              <div key={bl.blockId} className="space-y-3">
-                <div className="flex items-baseline justify-between gap-2">
+          return (
+            <div key={bl.blockId} className="space-y-3">
+              <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2.5">
+                <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-semibold text-teal-300">
                     <span className="text-slate-500">{blockIndex + 1}. </span>
                     {bl.exerciseName}
                   </h3>
-                  <span className="text-xs text-slate-500">Resistance</span>
+                  {resistanceBodyCollapsed ? (
+                    <p className="mt-0.5 truncate text-xs text-slate-500">
+                      {bl.skipped
+                        ? 'Skipped'
+                        : bl.sets.length > 0 &&
+                            bl.sets.every((s) => s.done)
+                          ? 'All sets done'
+                          : 'In progress'}
+                    </p>
+                  ) : null}
                 </div>
-                <button
+                <span className="shrink-0 text-xs text-slate-500">
+                  Resistance
+                </span>
+                <Button
                   type="button"
-                  className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-left"
-                  onClick={() =>
-                    setExpandedBlockDetailIds((prev) =>
-                      new Set(prev).add(bl.blockId),
-                    )
+                  variant="ghost"
+                  className="shrink-0 px-2 text-slate-400"
+                  aria-label={
+                    resistanceBodyCollapsed
+                      ? 'Expand exercise'
+                      : 'Collapse exercise'
                   }
+                  onClick={() => toggleExerciseBlockCollapsed(bl.blockId)}
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium text-amber-400/90">
-                      Skipped
-                    </div>
-                    <div className="mt-0.5 text-sm text-slate-300">
-                      Tap to view or unskip
-                    </div>
-                  </div>
-                  <span className="shrink-0 text-slate-500" aria-hidden>
-                    ▾
-                  </span>
-                </button>
+                  {resistanceBodyCollapsed ? '▸' : '▾'}
+                </Button>
               </div>
-            )
-          }
 
-          return (
-            <div key={bl.blockId} className="space-y-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <h3 className="text-sm font-semibold text-teal-300">
-                  <span className="text-slate-500">{blockIndex + 1}. </span>
-                  {bl.exerciseName}
-                </h3>
-                <span className="text-xs text-slate-500">Resistance</span>
-              </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
+              {!resistanceBodyCollapsed &&
+                (resistanceSkippedInnerCollapsed ? (
+                  <button
+                    type="button"
+                    className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-left"
+                    onClick={() =>
+                      setExpandedBlockDetailIds((prev) =>
+                        new Set(prev).add(bl.blockId),
+                      )
+                    }
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-medium text-amber-400/90">
+                        Skipped
+                      </div>
+                      <div className="mt-0.5 text-sm text-slate-300">
+                        Tap to view or unskip
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-slate-500" aria-hidden>
+                      ▾
+                    </span>
+                  </button>
+                ) : (
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
                 {bl.skipped ? (
                   <div className="mb-3 flex justify-end">
                     <Button
@@ -243,9 +286,9 @@ export function SessionBlockEditors({
                           next.delete(bl.blockId)
                           return next
                         })
-                        setExpandedDoneSetIds((prev) => {
+                        setCollapsedSetIds((prev) => {
                           const next = new Set(prev)
-                          for (const s of bl.sets) next.delete(s.id)
+                          for (const s of bl.sets) next.add(s.id)
                           return next
                         })
                       }}
@@ -263,10 +306,9 @@ export function SessionBlockEditors({
                     const historyHint = formatResistanceSnapshot(
                       historySets?.[i],
                     )
-                    const collapsedDone =
-                      set.done && !expandedDoneSetIds.has(set.id)
+                    const setRowCollapsed = collapsedSetIds.has(set.id)
 
-                    if (collapsedDone) {
+                    if (setRowCollapsed) {
                       return (
                         <div
                           key={set.id}
@@ -276,18 +318,23 @@ export function SessionBlockEditors({
                             type="button"
                             className="flex w-full items-start justify-between gap-3 text-left"
                             onClick={() =>
-                              setExpandedDoneSetIds((prev) =>
-                                new Set(prev).add(set.id),
-                              )
+                              setCollapsedSetIds((prev) => {
+                                const next = new Set(prev)
+                                next.delete(set.id)
+                                return next
+                              })
                             }
                           >
                             <div className="min-w-0 flex-1">
                               <div className="text-xs font-medium text-slate-500">
-                                Set {i + 1} · done
+                                Set {i + 1}
+                                {set.done ? ' · done' : ''}
                               </div>
                               <div className="mt-0.5 text-sm text-slate-200">
                                 {formatResistanceSnapshot(set) ||
-                                  'Tap to view or edit'}
+                                  (set.done
+                                    ? 'Tap to view or edit'
+                                    : 'Tap to expand')}
                               </div>
                             </div>
                             <span
@@ -352,17 +399,15 @@ export function SessionBlockEditors({
                               Last time: {historyHint}
                             </span>
                           ) : null}
-                          {set.done && expandedDoneSetIds.has(set.id) ? (
+                          {!setRowCollapsed ? (
                             <Button
                               type="button"
                               variant="ghost"
                               className="ml-auto px-2 py-1 text-xs text-slate-400"
                               onClick={() =>
-                                setExpandedDoneSetIds((prev) => {
-                                  const next = new Set(prev)
-                                  next.delete(set.id)
-                                  return next
-                                })
+                                setCollapsedSetIds((prev) =>
+                                  new Set(prev).add(set.id),
+                                )
                               }
                             >
                               Collapse
@@ -392,9 +437,10 @@ export function SessionBlockEditors({
                                   }),
                                 ),
                               )
-                              setExpandedDoneSetIds((prev) => {
+                              setCollapsedSetIds((prev) => {
                                 const next = new Set(prev)
-                                next.delete(set.id)
+                                if (willComplete) next.add(set.id)
+                                else next.delete(set.id)
                                 return next
                               })
                               if (
@@ -620,64 +666,81 @@ export function SessionBlockEditors({
                   </Button>
                 </div>
               </div>
+                )
+              )}
             </div>
           )
         }
 
         const act = block as ActivityBlockLog
-        const activityCollapsed =
+        const activityInnerCompact =
           (act.done || act.skipped) &&
           !expandedBlockDetailIds.has(act.blockId)
+        const activityBodyCollapsed = collapsedExerciseBlockIds.has(
+          act.blockId,
+        )
 
-        if (activityCollapsed) {
-          return (
-            <div key={act.blockId} className="space-y-3">
-              <div className="flex items-baseline justify-between gap-2">
+        return (
+          <div key={act.blockId} className="space-y-3">
+            <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-semibold text-teal-300">
                   <span className="text-slate-500">{blockIndex + 1}. </span>
                   {act.exerciseName}
                 </h3>
-                <span className="text-xs text-slate-500">Activity</span>
-              </div>
-              <button
-                type="button"
-                className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-left"
-                onClick={() =>
-                  setExpandedBlockDetailIds((prev) =>
-                    new Set(prev).add(act.blockId),
-                  )
-                }
-              >
-                <div className="min-w-0 flex-1">
-                  <div
-                    className={`text-xs font-medium ${act.skipped ? 'text-amber-400/90' : 'text-slate-500'}`}
-                  >
-                    {act.skipped ? 'Skipped' : 'Done'}
-                  </div>
-                  <div className="mt-0.5 text-sm text-slate-200">
+                {activityBodyCollapsed ? (
+                  <p className="mt-0.5 truncate text-xs text-slate-500">
                     {act.skipped
-                      ? 'Tap to view or unskip'
-                      : formatActivitySnapshot(act)}
-                  </div>
-                </div>
-                <span className="shrink-0 text-slate-500" aria-hidden>
-                  ▾
-                </span>
-              </button>
+                      ? 'Skipped'
+                      : act.done
+                        ? 'Done'
+                        : 'In progress'}
+                  </p>
+                ) : null}
+              </div>
+              <span className="shrink-0 text-xs text-slate-500">Activity</span>
+              <Button
+                type="button"
+                variant="ghost"
+                className="shrink-0 px-2 text-slate-400"
+                aria-label={
+                  activityBodyCollapsed ? 'Expand exercise' : 'Collapse exercise'
+                }
+                onClick={() => toggleExerciseBlockCollapsed(act.blockId)}
+              >
+                {activityBodyCollapsed ? '▸' : '▾'}
+              </Button>
             </div>
-          )
-        }
 
-        return (
-          <div key={act.blockId} className="space-y-3">
-            <div className="flex items-baseline justify-between gap-2">
-              <h3 className="text-sm font-semibold text-teal-300">
-                <span className="text-slate-500">{blockIndex + 1}. </span>
-                {act.exerciseName}
-              </h3>
-              <span className="text-xs text-slate-500">Activity</span>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
+            {!activityBodyCollapsed &&
+              (activityInnerCompact ? (
+                <button
+                  type="button"
+                  className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-left"
+                  onClick={() =>
+                    setExpandedBlockDetailIds((prev) =>
+                      new Set(prev).add(act.blockId),
+                    )
+                  }
+                >
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={`text-xs font-medium ${act.skipped ? 'text-amber-400/90' : 'text-slate-500'}`}
+                    >
+                      {act.skipped ? 'Skipped' : 'Done'}
+                    </div>
+                    <div className="mt-0.5 text-sm text-slate-200">
+                      {act.skipped
+                        ? 'Tap to view or unskip'
+                        : formatActivitySnapshot(act)}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-slate-500" aria-hidden>
+                    ▾
+                  </span>
+                </button>
+              ) : (
+                <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
               {act.skipped ? (
                 <div className="mb-3 flex justify-end">
                   <Button
@@ -839,6 +902,8 @@ export function SessionBlockEditors({
                 />
               </label>
             </div>
+                )
+              )}
           </div>
         )
       })}

@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { Program, WorkoutSession } from '../types'
-import { getProgram, listSessionsForProgram } from '../db/repo'
+import {
+  getProgram,
+  listIncompleteSessionsForProgram,
+  listSessionsForProgram,
+} from '../db/repo'
+import { normalizeWorkoutSession } from '../db/normalizeWorkoutSession'
 import { Button } from '../components/Button'
 
 function formatWhen(ts: number): string {
@@ -17,15 +22,22 @@ export function TrackPickerPage() {
   const { programId } = useParams()
   const [program, setProgram] = useState<Program | null>(null)
   const [sessions, setSessions] = useState<WorkoutSession[]>([])
+  const [incompleteForProgram, setIncompleteForProgram] = useState<
+    WorkoutSession[]
+  >([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     if (!programId) return
     setLoading(true)
-    const p = await getProgram(programId)
-    const s = await listSessionsForProgram(programId)
+    const [p, s, incompletes] = await Promise.all([
+      getProgram(programId),
+      listSessionsForProgram(programId),
+      listIncompleteSessionsForProgram(programId),
+    ])
     setProgram(p ?? null)
-    setSessions(s)
+    setSessions(s.map(normalizeWorkoutSession))
+    setIncompleteForProgram(incompletes.map(normalizeWorkoutSession))
     setLoading(false)
   }, [programId])
 
@@ -35,6 +47,8 @@ export function TrackPickerPage() {
     })
     return () => cancelAnimationFrame(id)
   }, [load])
+
+  const inProgress = incompleteForProgram[0] ?? null
 
   const completedSessions = useMemo(
     () => sessions.filter((s) => s.completedAt != null),
@@ -76,9 +90,17 @@ export function TrackPickerPage() {
       </Link>
       <h1 className="mt-2 text-xl font-semibold text-white">Track workout</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Pick a day to log a session. You can save multiple sessions for the same
-        day whenever you train.
+        Pick a day to log a session. Only one in-progress session per program
+        at a time—finish or cancel it before starting another day.
       </p>
+
+      {inProgress ? (
+        <p className="mt-3 rounded-lg border border-teal-800/60 bg-teal-950/40 px-3 py-2 text-xs text-teal-200/95">
+          <span className="font-medium">In progress:</span>{' '}
+          {inProgress.dayLabel}. Continue that session or cancel it from the
+          workout screen before tracking a different day.
+        </p>
+      ) : null}
 
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">
         Choose day
@@ -86,6 +108,68 @@ export function TrackPickerPage() {
       <ul className="mt-3 space-y-2">
         {program.days.map((d) => {
           const n = countByDay.get(d.id) ?? 0
+          const isActiveDay = inProgress && inProgress.dayId === d.id
+          const blocked =
+            inProgress != null && inProgress.dayId !== d.id
+
+          if (isActiveDay) {
+            return (
+              <li
+                key={d.id}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-xl border border-teal-700/50 bg-teal-950/30 px-4 py-3"
+              >
+                <div className="min-w-0 overflow-hidden">
+                  <div className="truncate font-medium text-teal-100">
+                    {d.label}
+                  </div>
+                  <div className="truncate text-xs text-teal-400/80">
+                    {d.blocks.length} exercise{d.blocks.length === 1 ? '' : 's'}
+                    {n > 0 && ` · ${n} session${n === 1 ? '' : 's'} logged`}
+                    {' · '}
+                    <span className="font-medium">In progress</span>
+                  </div>
+                </div>
+                <Link
+                  to={`/programs/${program.id}/track/${d.id}`}
+                  className="shrink-0 self-center"
+                >
+                  <Button className="text-sm whitespace-nowrap">
+                    Continue
+                  </Button>
+                </Link>
+              </li>
+            )
+          }
+
+          if (blocked) {
+            return (
+              <li
+                key={d.id}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800/80 bg-slate-950/40 px-4 py-3 opacity-50"
+                title="Finish or cancel your in-progress session first"
+              >
+                <div className="min-w-0 overflow-hidden">
+                  <div className="truncate font-medium text-slate-500">
+                    {d.label}
+                  </div>
+                  <div className="truncate text-xs text-slate-600">
+                    {d.blocks.length} exercise{d.blocks.length === 1 ? '' : 's'}
+                    {n > 0 && ` · ${n} session${n === 1 ? '' : 's'} logged`}
+                  </div>
+                </div>
+                <div className="shrink-0 self-center">
+                  <Button
+                    className="text-sm whitespace-nowrap"
+                    disabled
+                    variant="secondary"
+                  >
+                    Locked
+                  </Button>
+                </div>
+              </li>
+            )
+          }
+
           return (
             <li
               key={d.id}

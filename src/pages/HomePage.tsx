@@ -10,6 +10,7 @@ import {
   localDateKey,
   weekdayMondayZero,
 } from '../lib/stats'
+import { lastSessionTimestampsByActivity } from '../lib/homeActivities'
 import { Button } from '../components/Button'
 
 function formatSessionWhen(ts: number): string {
@@ -20,6 +21,67 @@ function formatSessionWhen(ts: number): string {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+function formatActivityLastDate(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function IconRunning(props: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      className={props.className}
+      aria-hidden
+    >
+      <path d="M5 19c2.5-5 7-7 11-4.5S21 19 21 19" />
+      <circle cx="8" cy="7" r="2.25" />
+    </svg>
+  )
+}
+
+function IconClimbing(props: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={props.className}
+      aria-hidden
+    >
+      <path d="M4 20 10 9l4 4 6-9" />
+      <circle cx="10" cy="8" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function IconLifting(props: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      className={props.className}
+      aria-hidden
+    >
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <rect x="1" y="8.5" width="3" height="7" rx="0.75" fill="currentColor" />
+      <rect x="20" y="8.5" width="3" height="7" rx="0.75" fill="currentColor" />
+    </svg>
+  )
 }
 
 export function HomePage() {
@@ -54,6 +116,11 @@ export function HomePage() {
   )
 
   const streak = useMemo(() => computeWorkoutStreak(activeDays), [activeDays])
+
+  const activityLastAt = useMemo(
+    () => lastSessionTimestampsByActivity(completedSessions),
+    [completedSessions],
+  )
 
   const recentSessions = useMemo(() => {
     return [...completedSessions]
@@ -119,6 +186,61 @@ export function HomePage() {
                 {streak}
               </div>
               <div className="text-xs text-slate-500">Days in a row</div>
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <h2 className="text-sm font-semibold text-slate-200">
+              Running, climbing &amp; lifting
+            </h2>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {(
+                [
+                  {
+                    key: 'running',
+                    label: 'Running',
+                    Icon: IconRunning,
+                    lastAt: activityLastAt.running,
+                  },
+                  {
+                    key: 'climbing',
+                    label: 'Climbing',
+                    Icon: IconClimbing,
+                    lastAt: activityLastAt.climbing,
+                  },
+                  {
+                    key: 'lifting',
+                    label: 'Lifting',
+                    Icon: IconLifting,
+                    lastAt: activityLastAt.lifting,
+                  },
+                ] as const
+              ).map(({ key, label, Icon, lastAt }) => (
+                <div
+                  key={key}
+                  className="flex flex-col items-center text-center"
+                >
+                  <div
+                    className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border border-slate-700/80 bg-slate-900/60 text-teal-400/90"
+                    aria-hidden
+                  >
+                    <Icon className="h-8 w-8" />
+                  </div>
+                  <div className="mt-2 text-xs font-medium text-slate-300">
+                    {label}
+                  </div>
+                  <div className="mt-1 text-[10px] leading-snug text-slate-500">
+                    Last session:{' '}
+                    {lastAt != null ? (
+                      <span className="text-slate-400">
+                        {formatActivityLastDate(lastAt)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

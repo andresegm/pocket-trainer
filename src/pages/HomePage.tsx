@@ -90,7 +90,7 @@ export function HomePage() {
   return (
     <div className="mx-auto max-w-lg px-4 pt-6 pb-8">
       <h1 className="text-2xl font-bold tracking-tight text-white">
-        Pocket Trainer
+        Pocket Trainer - Test
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-400">
         Build programs from your exercise library, track sessions, and review

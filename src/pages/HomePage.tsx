@@ -84,6 +84,24 @@ function IconLifting(props: { className?: string }) {
   )
 }
 
+function IconMeditating(props: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={props.className}
+      aria-hidden
+    >
+      <circle cx="12" cy="8" r="2.5" />
+      <path d="M7.5 19c0-3.2 2-6 4.5-6s4.5 2.8 4.5 6" />
+    </svg>
+  )
+}
+
 export function HomePage() {
   const [sessions, setSessions] = useState<WorkoutSession[]>([])
   const [loading, setLoading] = useState(true)
@@ -191,9 +209,9 @@ export function HomePage() {
 
           <div className="mt-8">
             <h2 className="text-sm font-semibold text-slate-200">
-              Running, climbing &amp; lifting
+              Running, climbing, lifting &amp; meditation
             </h2>
-            <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-3">
               {(
                 [
                   {
@@ -213,6 +231,12 @@ export function HomePage() {
                     label: 'Lifting',
                     Icon: IconLifting,
                     lastAt: activityLastAt.lifting,
+                  },
+                  {
+                    key: 'meditating',
+                    label: 'Meditating',
+                    Icon: IconMeditating,
+                    lastAt: activityLastAt.meditating,
                   },
                 ] as const
               ).map(({ key, label, Icon, lastAt }) => (

@@ -684,6 +684,13 @@ export const SEED_EXERCISES: Exercise[] = [
     tags: ['cardio'],
     isCustom: false,
   },
+  {
+    id: 'seed-meditate',
+    name: 'Meditation',
+    kind: 'activity',
+    tags: ['mindfulness', 'recovery'],
+    isCustom: false,
+  },
 ]
 
 SEED_EXERCISES.forEach((e) => SEED_IDS.add(e.id))

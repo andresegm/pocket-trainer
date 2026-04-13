@@ -18,6 +18,14 @@ function formatWhen(ts: number): string {
   })
 }
 
+function formatLastSessionDate(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 export function TrackPickerPage() {
   const { programId } = useParams()
   const [program, setProgram] = useState<Program | null>(null)
@@ -59,6 +67,16 @@ export function TrackPickerPage() {
     const m = new Map<string, number>()
     for (const ses of completedSessions) {
       m.set(ses.dayId, (m.get(ses.dayId) ?? 0) + 1)
+    }
+    return m
+  }, [completedSessions])
+
+  const lastCompletedAtByDay = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const ses of completedSessions) {
+      const t = ses.completedAt!
+      const prev = m.get(ses.dayId)
+      if (prev == null || t > prev) m.set(ses.dayId, t)
     }
     return m
   }, [completedSessions])
@@ -108,6 +126,7 @@ export function TrackPickerPage() {
       <ul className="mt-3 space-y-2">
         {program.days.map((d) => {
           const n = countByDay.get(d.id) ?? 0
+          const lastTs = lastCompletedAtByDay.get(d.id)
           const isActiveDay = inProgress && inProgress.dayId === d.id
           const blocked =
             inProgress != null && inProgress.dayId !== d.id
@@ -127,6 +146,16 @@ export function TrackPickerPage() {
                     {n > 0 && ` · ${n} session${n === 1 ? '' : 's'} logged`}
                     {' · '}
                     <span className="font-medium">In progress</span>
+                  </div>
+                  <div className="mt-0.5 truncate text-[11px] text-teal-400/70">
+                    Last session:{' '}
+                    {lastTs != null ? (
+                      <span className="text-teal-200/90">
+                        {formatLastSessionDate(lastTs)}
+                      </span>
+                    ) : (
+                      <span className="text-teal-600/90">—</span>
+                    )}
                   </div>
                 </div>
                 <Link
@@ -156,6 +185,16 @@ export function TrackPickerPage() {
                     {d.blocks.length} exercise{d.blocks.length === 1 ? '' : 's'}
                     {n > 0 && ` · ${n} session${n === 1 ? '' : 's'} logged`}
                   </div>
+                  <div className="mt-0.5 truncate text-[11px] text-slate-600">
+                    Last session:{' '}
+                    {lastTs != null ? (
+                      <span className="text-slate-500">
+                        {formatLastSessionDate(lastTs)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-700">—</span>
+                    )}
+                  </div>
                 </div>
                 <div className="shrink-0 self-center">
                   <Button
@@ -182,6 +221,16 @@ export function TrackPickerPage() {
                 <div className="truncate text-xs text-slate-500">
                   {d.blocks.length} exercise{d.blocks.length === 1 ? '' : 's'}
                   {n > 0 && ` · ${n} session${n === 1 ? '' : 's'} logged`}
+                </div>
+                <div className="mt-0.5 truncate text-[11px] text-slate-500">
+                  Last session:{' '}
+                  {lastTs != null ? (
+                    <span className="text-slate-400">
+                      {formatLastSessionDate(lastTs)}
+                    </span>
+                  ) : (
+                    <span className="text-slate-600">—</span>
+                  )}
                 </div>
               </div>
               <Link

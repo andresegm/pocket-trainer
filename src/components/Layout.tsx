@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   [
@@ -6,7 +6,16 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'text-teal-400' : 'text-slate-400 hover:text-slate-200',
   ].join(' ')
 
+function isTrackRoute(pathname: string): boolean {
+  return (
+    pathname === '/track' ||
+    /^\/programs\/[^/]+\/track(\/|$)/.test(pathname)
+  )
+}
+
 export function Layout() {
+  const { pathname } = useLocation()
+
   return (
     <div className="flex min-h-dvh flex-col bg-slate-950 text-slate-100">
       {/*
@@ -27,6 +36,15 @@ export function Layout() {
         <NavLink to="/library" className={linkClass}>
           <span aria-hidden>≡</span>
           Library
+        </NavLink>
+        <NavLink
+          to="/track"
+          className={({ isActive }) =>
+            linkClass({ isActive: isActive || isTrackRoute(pathname) })
+          }
+        >
+          <span aria-hidden>◎</span>
+          Track
         </NavLink>
         <NavLink to="/programs" className={linkClass}>
           <span aria-hidden>▤</span>

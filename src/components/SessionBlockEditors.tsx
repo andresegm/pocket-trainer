@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type {
   ActivityBlockLog,
   BlockSessionLog,
@@ -96,6 +96,8 @@ export function SessionBlockEditors({
   const [collapsedExerciseBlockIds, setCollapsedExerciseBlockIds] = useState<
     Set<string>
   >(() => new Set())
+  const lockBannerNotificationRef = useRef<Notification | null>(null)
+  const restDoneNotifiedRef = useRef(false)
 
   function toggleExerciseBlockCollapsed(blockId: string) {
     setCollapsedExerciseBlockIds((prev) => {
@@ -126,6 +128,82 @@ export function SessionBlockEditors({
     restUntilMs == null
       ? null
       : Math.max(0, Math.ceil((restUntilMs - restNowMs) / 1000))
+
+  useEffect(() => {
+    if (restRemaining == null || restRemaining > 0) {
+      restDoneNotifiedRef.current = false
+      return
+    }
+
+    lockBannerNotificationRef.current?.close()
+    lockBannerNotificationRef.current = null
+
+    if (restDoneNotifiedRef.current) return
+    restDoneNotifiedRef.current = true
+
+    if (
+      document.visibilityState !== 'visible' &&
+      typeof Notification !== 'undefined' &&
+      Notification.permission === 'granted'
+    ) {
+      new Notification('Rest complete', {
+        body: 'Time for your next set.',
+        tag: 'pocket-trainer-rest-done',
+      })
+    }
+  }, [restRemaining])
+
+  useEffect(() => {
+    if (restRemaining == null || restRemaining <= 0) {
+      lockBannerNotificationRef.current?.close()
+      lockBannerNotificationRef.current = null
+      return
+    }
+
+    if (
+      typeof Notification === 'undefined' ||
+      Notification.permission !== 'granted'
+    ) {
+      return
+    }
+
+    const showLockBanner = () => {
+      if (document.visibilityState === 'visible') {
+        lockBannerNotificationRef.current?.close()
+        lockBannerNotificationRef.current = null
+        return
+      }
+      lockBannerNotificationRef.current?.close()
+      lockBannerNotificationRef.current = new Notification('Rest timer', {
+        body: `${restRemaining}s remaining`,
+        tag: 'pocket-trainer-rest-active',
+      })
+    }
+
+    showLockBanner()
+    document.addEventListener('visibilitychange', showLockBanner)
+    return () => {
+      document.removeEventListener('visibilitychange', showLockBanner)
+    }
+  }, [restRemaining])
+
+  useEffect(() => {
+    setCollapsedExerciseBlockIds((prev) => {
+      let changed = false
+      const next = new Set(prev)
+      for (const b of blocks) {
+        if (b.type !== 'resistance') continue
+        if (b.skipped) continue
+        if (b.sets.length === 0) continue
+        if (!b.sets.every((s) => s.done)) continue
+        if (!next.has(b.blockId)) {
+          next.add(b.blockId)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [blocks])
 
   if (blocks.length === 0) {
     return (
@@ -470,6 +548,12 @@ export function SessionBlockEditors({
                                 typeof sec === 'number' &&
                                 sec >= 1
                               ) {
+                                if (
+                                  typeof Notification !== 'undefined' &&
+                                  Notification.permission === 'default'
+                                ) {
+                                  void Notification.requestPermission()
+                                }
                                 setRestNowMs(Date.now())
                                 setRestUntilMs(Date.now() + Math.floor(sec) * 1000)
                               }

@@ -82,7 +82,8 @@ export function SessionBlockEditors({
   onChange: (next: BlockSessionLog[]) => void
   workoutAssist?: SessionWorkoutAssist
 }) {
-  const [restRemaining, setRestRemaining] = useState<number | null>(null)
+  const [restUntilMs, setRestUntilMs] = useState<number | null>(null)
+  const [restNowMs, setRestNowMs] = useState(() => Date.now())
   /** Set ids showing a compact row (manual or auto after marking done). */
   const [collapsedSetIds, setCollapsedSetIds] = useState<Set<string>>(
     () => new Set(),
@@ -106,15 +107,25 @@ export function SessionBlockEditors({
   }
 
   useEffect(() => {
-    if (restRemaining === null || restRemaining <= 0) return
-    const id = window.setInterval(() => {
-      setRestRemaining((r) => {
-        if (r === null || r <= 1) return null
-        return r - 1
-      })
-    }, 1000)
-    return () => clearInterval(id)
-  }, [restRemaining])
+    if (restUntilMs == null) return
+    const tick = () => setRestNowMs(Date.now())
+    const id = window.setInterval(tick, 1000)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') tick()
+    }
+    window.addEventListener('focus', tick)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', tick)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [restUntilMs])
+
+  const restRemaining =
+    restUntilMs == null
+      ? null
+      : Math.max(0, Math.ceil((restUntilMs - restNowMs) / 1000))
 
   if (blocks.length === 0) {
     return (
@@ -148,7 +159,7 @@ export function SessionBlockEditors({
                 type="button"
                 variant="secondary"
                 className="min-w-[8rem]"
-                onClick={() => setRestRemaining(null)}
+                onClick={() => setRestUntilMs(null)}
               >
                 Dismiss
               </Button>
@@ -422,6 +433,11 @@ export function SessionBlockEditors({
                             onClick={() => {
                               const willComplete = !set.done
                               const sec = set.restSec
+                              const exerciseWillBeDone =
+                                willComplete &&
+                                bl.sets.every((s) =>
+                                  s.id === set.id ? true : Boolean(s.done),
+                                )
                               onChange(
                                 updateResistanceLog(
                                   blocks,
@@ -443,12 +459,19 @@ export function SessionBlockEditors({
                                 else next.delete(set.id)
                                 return next
                               })
+                              setCollapsedExerciseBlockIds((prev) => {
+                                const next = new Set(prev)
+                                if (exerciseWillBeDone) next.add(bl.blockId)
+                                else if (!willComplete) next.delete(bl.blockId)
+                                return next
+                              })
                               if (
                                 willComplete &&
                                 typeof sec === 'number' &&
                                 sec >= 1
                               ) {
-                                setRestRemaining(Math.floor(sec))
+                                setRestNowMs(Date.now())
+                                setRestUntilMs(Date.now() + Math.floor(sec) * 1000)
                               }
                             }}
                           >

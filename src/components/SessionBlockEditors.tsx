@@ -167,23 +167,23 @@ export function SessionBlockEditors({
       return
     }
 
-    const showLockBanner = () => {
+    const showLockBannerOnce = () => {
       if (document.visibilityState === 'visible') {
         lockBannerNotificationRef.current?.close()
         lockBannerNotificationRef.current = null
         return
       }
-      lockBannerNotificationRef.current?.close()
+      if (lockBannerNotificationRef.current) return
       lockBannerNotificationRef.current = new Notification('Rest timer', {
         body: `${restRemaining}s remaining`,
         tag: 'pocket-trainer-rest-active',
       })
     }
 
-    showLockBanner()
-    document.addEventListener('visibilitychange', showLockBanner)
+    showLockBannerOnce()
+    document.addEventListener('visibilitychange', showLockBannerOnce)
     return () => {
-      document.removeEventListener('visibilitychange', showLockBanner)
+      document.removeEventListener('visibilitychange', showLockBannerOnce)
     }
   }, [restRemaining])
 

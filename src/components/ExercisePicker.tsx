@@ -9,7 +9,7 @@ export function ExercisePicker({
   onClose,
   onPick,
 }: {
-  kind: ExerciseKind
+  kind?: ExerciseKind
   open: boolean
   onClose: () => void
   onPick: (ex: Exercise) => void
@@ -22,7 +22,7 @@ export function ExercisePicker({
     let cancelled = false
     void searchExercises(query).then((rows) => {
       if (cancelled) return
-      setList(rows.filter((e) => e.kind === kind))
+      setList(kind ? rows.filter((e) => e.kind === kind) : rows)
     })
     return () => {
       cancelled = true
@@ -30,7 +30,12 @@ export function ExercisePicker({
   }, [open, query, kind])
 
   const title = useMemo(
-    () => (kind === 'resistance' ? 'Resistance exercise' : 'Activity'),
+    () =>
+      kind === 'resistance'
+        ? 'Resistance exercise'
+        : kind === 'activity'
+          ? 'Activity'
+          : 'Add exercise',
     [kind],
   )
 
@@ -80,6 +85,11 @@ export function ExercisePicker({
                   }}
                 >
                   <span className="font-medium">{ex.name}</span>
+                  {!kind && (
+                    <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] capitalize text-slate-400">
+                      {ex.kind}
+                    </span>
+                  )}
                   {ex.tags.length > 0 && (
                     <span className="ml-2 text-xs text-slate-500">
                       {ex.tags.join(', ')}

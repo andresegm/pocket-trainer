@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import type { Program, WorkoutSession } from '../types'
 import {
   getProgram,
@@ -26,8 +26,20 @@ function formatLastSessionDate(ts: number): string {
   })
 }
 
+function formatDateLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 export function TrackPickerPage() {
   const { programId } = useParams()
+  const [searchParams] = useSearchParams()
+  const dateParam = searchParams.get('date')
   const [program, setProgram] = useState<Program | null>(null)
   const [sessions, setSessions] = useState<WorkoutSession[]>([])
   const [incompleteForProgram, setIncompleteForProgram] = useState<
@@ -107,12 +119,19 @@ export function TrackPickerPage() {
         ← {program.name}
       </Link>
       <h1 className="mt-2 text-xl font-semibold text-white">Track workout</h1>
+      {dateParam && (
+        <p className="mt-1 rounded-lg border border-amber-800/50 bg-amber-950/30 px-3 py-2 text-xs text-amber-200/90">
+          Logging for{' '}
+          <span className="font-medium">{formatDateLabel(dateParam)}</span>
+        </p>
+      )}
       <p className="mt-1 text-sm text-slate-500">
-        Pick a day to log a session. Only one in-progress session per program
-        at a time—finish or cancel it before starting another day.
+        Pick a day to log a session.{' '}
+        {!dateParam &&
+          'Only one in-progress session per program at a time\u2014finish or cancel it before starting another day.'}
       </p>
 
-      {inProgress ? (
+      {inProgress && !dateParam ? (
         <p className="mt-3 rounded-lg border border-teal-800/60 bg-teal-950/40 px-3 py-2 text-xs text-teal-200/95">
           <span className="font-medium">In progress:</span>{' '}
           {inProgress.dayLabel}. Continue that session or cancel it from the
@@ -127,9 +146,9 @@ export function TrackPickerPage() {
         {program.days.map((d) => {
           const n = countByDay.get(d.id) ?? 0
           const lastTs = lastCompletedAtByDay.get(d.id)
-          const isActiveDay = inProgress && inProgress.dayId === d.id
+          const isActiveDay = !dateParam && inProgress && inProgress.dayId === d.id
           const blocked =
-            inProgress != null && inProgress.dayId !== d.id
+            !dateParam && inProgress != null && inProgress.dayId !== d.id
 
           if (isActiveDay) {
             return (
@@ -159,7 +178,7 @@ export function TrackPickerPage() {
                   </div>
                 </div>
                 <Link
-                  to={`/programs/${program.id}/track/${d.id}`}
+                  to={`/programs/${program.id}/track/${d.id}${dateParam ? `?date=${dateParam}` : ''}`}
                   className="shrink-0 self-center"
                 >
                   <Button className="text-sm whitespace-nowrap">
@@ -234,7 +253,7 @@ export function TrackPickerPage() {
                 </div>
               </div>
               <Link
-                to={`/programs/${program.id}/track/${d.id}`}
+                to={`/programs/${program.id}/track/${d.id}${dateParam ? `?date=${dateParam}` : ''}`}
                 className="shrink-0 self-center"
               >
                 <Button className="text-sm whitespace-nowrap">

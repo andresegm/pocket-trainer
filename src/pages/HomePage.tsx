@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { WorkoutSession } from '../types'
 import { listAllSessions } from '../db/repo'
 import { normalizeWorkoutSession } from '../db/normalizeWorkoutSession'
@@ -103,6 +103,7 @@ function IconMeditating(props: { className?: string }) {
 }
 
 export function HomePage() {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState<WorkoutSession[]>([])
   const [loading, setLoading] = useState(true)
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear())
@@ -314,24 +315,26 @@ export function HomePage() {
                 const has = activeDays.has(c.key)
                 const isToday = c.key === todayKey
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={c.key}
                     className={[
-                      'flex aspect-square items-center justify-center rounded-lg text-xs',
+                      'flex aspect-square items-center justify-center rounded-lg text-xs transition-colors active:bg-slate-700/40',
                       has
                         ? 'bg-teal-600/35 font-medium text-teal-100'
-                        : 'text-slate-600',
+                        : 'text-slate-600 hover:text-slate-400',
                       isToday ? 'ring-1 ring-teal-500/60' : '',
                     ].join(' ')}
-                    title={c.key}
+                    title={`Log workout for ${c.key}`}
+                    onClick={() => navigate(`/track?date=${c.key}`)}
                   >
                     {c.day}
-                  </div>
+                  </button>
                 )
               })}
             </div>
             <p className="mt-2 text-xs text-slate-600">
-              Days with at least one saved session (local time).
+              Tap a date to log a workout. Highlighted days have saved sessions.
             </p>
           </div>
 

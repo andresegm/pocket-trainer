@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import type { Program } from '../types'
 import { listPrograms } from '../db/repo'
 import { Button } from '../components/Button'
 
+function formatDateLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 export function TrackHubPage() {
+  const [searchParams] = useSearchParams()
+  const dateParam = searchParams.get('date')
   const [programs, setPrograms] = useState<Program[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -33,6 +45,12 @@ export function TrackHubPage() {
   return (
     <div className="mx-auto max-w-lg px-4 pt-6 pb-8">
       <h1 className="text-xl font-semibold text-white">Track</h1>
+      {dateParam && (
+        <p className="mt-1 rounded-lg border border-amber-800/50 bg-amber-950/30 px-3 py-2 text-xs text-amber-200/90">
+          Logging workout for{' '}
+          <span className="font-medium">{formatDateLabel(dateParam)}</span>
+        </p>
+      )}
       <p className="mt-1 text-sm text-slate-500">
         Choose a program, then pick a day to log your workout.
       </p>
@@ -49,7 +67,7 @@ export function TrackHubPage() {
                 {p.days.length} day{p.days.length === 1 ? '' : 's'}
               </div>
             </div>
-            <Link to={`/programs/${p.id}/track`} className="shrink-0">
+            <Link to={`/programs/${p.id}/track${dateParam ? `?date=${dateParam}` : ''}`} className="shrink-0">
               <Button className="px-3 py-1.5 text-xs whitespace-nowrap">
                 Choose day
               </Button>

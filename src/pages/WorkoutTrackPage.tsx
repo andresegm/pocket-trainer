@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type {
   ActivityBlockLog,
   BlockSessionLog,
+  Exercise,
   LoggedResistanceSet,
   Program,
   ResistanceBlockLog,
+  RoutineBlock,
   WorkoutSession,
 } from '../types'
 import { db } from '../db/schema'
@@ -16,19 +18,40 @@ import {
   getProgram,
   listIncompleteSessionsForProgramDay,
   newId,
+  saveProgram,
   saveWorkoutSession,
 } from '../db/repo'
 import { normalizeWorkoutSession } from '../db/normalizeWorkoutSession'
 import { exerciseNameMap, logsFromRoutine } from '../db/sessionLog'
 import { SessionBlockEditors } from '../components/SessionBlockEditors'
+import { ExercisePicker } from '../components/ExercisePicker'
 import { Button } from '../components/Button'
 import { computeWorkoutProgress } from '../lib/workoutProgress'
 
 type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
+function formatBackdateLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 export function WorkoutTrackPage() {
   const { programId, dayId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const backdateStr = searchParams.get('date')
+  const backdateTs = useMemo(() => {
+    if (!backdateStr) return null
+    const [y, m, d] = backdateStr.split('-').map(Number)
+    if (!y || !m || !d) return null
+    return new Date(y, m - 1, d, 12, 0, 0).getTime()
+  }, [backdateStr])
+
   const [program, setProgram] = useState<Program | null>(null)
   const [blocks, setBlocks] = useState<BlockSessionLog[]>([])
   const [notes, setNotes] = useState('')
@@ -43,6 +66,10 @@ export function WorkoutTrackPage() {
   const [historyResistanceSetsByBlockId, setHistoryResistanceSetsByBlockId] =
     useState<Map<string, LoggedResistanceSet[]>>(new Map())
   const sessionCreatedAtRef = useRef<number | null>(null)
+  const [showExercisePicker, setShowExercisePicker] = useState(false)
+  const [pendingAddExercise, setPendingAddExercise] = useState<Exercise | null>(
+    null,
+  )
 
   const load = useCallback(async () => {
     if (!programId || !dayId) return
@@ -57,7 +84,7 @@ export function WorkoutTrackPage() {
     setProgram(p ?? null)
 
     if (p && day) {
-      const draft = incompletes[0]
+      const draft = backdateTs == null ? incompletes[0] : undefined
       if (draft) {
         const norm = normalizeWorkoutSession(draft)
         setSessionId(norm.id)
@@ -69,7 +96,7 @@ export function WorkoutTrackPage() {
         setSessionId(newId())
         setBlocks(logsFromRoutine(day, exerciseNameMap(ex)))
         setNotes('')
-        sessionCreatedAtRef.current = null
+        sessionCreatedAtRef.current = backdateTs
         setResumedDraft(false)
       }
       setLastCompleted(
@@ -82,7 +109,7 @@ export function WorkoutTrackPage() {
       setResumedDraft(false)
     }
     setLoading(false)
-  }, [programId, dayId])
+  }, [programId, dayId, backdateTs])
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -190,8 +217,140 @@ export function WorkoutTrackPage() {
     )
   }, [lastActivityFieldsByBlockId])
 
+  const lastSessionExtras = useMemo(() => {
+    if (!lastCompleted || !day) return []
+    const templateBlockIds = new Set(day.blocks.map((b) => b.id))
+    return lastCompleted.blocks.filter(
+      (b) => !templateBlockIds.has(b.blockId),
+    )
+  }, [lastCompleted, day])
+
+  const onCopyFullLastSession = useCallback(() => {
+    if (!lastCompleted) return
+    setBlocks((prev) => {
+      const currentBlockIds = new Set(prev.map((b) => b.blockId))
+      let updated = [...prev]
+
+      for (const lastBlock of lastCompleted.blocks) {
+        const idx = updated.findIndex((b) => b.blockId === lastBlock.blockId)
+        if (idx !== -1) {
+          if (lastBlock.type === 'resistance') {
+            updated[idx] = {
+              ...lastBlock,
+              sets: lastBlock.sets.map((s) => ({
+                ...s,
+                id: newId(),
+                done: false,
+              })),
+              skipped: false,
+            }
+          } else {
+            updated[idx] = {
+              ...lastBlock,
+              done: false,
+              skipped: false,
+            }
+          }
+        }
+      }
+
+      for (const lastBlock of lastCompleted.blocks) {
+        if (!currentBlockIds.has(lastBlock.blockId)) {
+          if (lastBlock.type === 'resistance') {
+            updated.push({
+              ...lastBlock,
+              blockId: newId(),
+              sets: lastBlock.sets.map((s) => ({
+                ...s,
+                id: newId(),
+                done: false,
+              })),
+              skipped: false,
+            })
+          } else {
+            updated.push({
+              ...lastBlock,
+              blockId: newId(),
+              done: false,
+              skipped: false,
+            })
+          }
+        }
+      }
+
+      return updated
+    })
+  }, [lastCompleted])
+
+  function addExerciseToSession(ex: Exercise) {
+    const blockId = newId()
+    let newBlock: BlockSessionLog
+    if (ex.kind === 'resistance') {
+      newBlock = {
+        blockId,
+        type: 'resistance',
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        sets: [{ id: newId(), done: false }],
+      }
+    } else {
+      newBlock = {
+        blockId,
+        type: 'activity',
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        done: false,
+      }
+    }
+    setBlocks((prev) => [...prev, newBlock])
+    setPendingAddExercise(null)
+  }
+
+  async function addExercisePermanently(ex: Exercise) {
+    if (!program || !day) return
+    const blockId = newId()
+
+    let routineBlock: RoutineBlock
+    if (ex.kind === 'resistance') {
+      routineBlock = { id: blockId, type: 'resistance', exerciseId: ex.id, setCount: 3 }
+    } else {
+      routineBlock = { id: blockId, type: 'activity', exerciseId: ex.id }
+    }
+
+    const updatedProgram: Program = {
+      ...program,
+      days: program.days.map((d) =>
+        d.id === day.id ? { ...d, blocks: [...d.blocks, routineBlock] } : d,
+      ),
+    }
+    await saveProgram(updatedProgram)
+    setProgram(updatedProgram)
+
+    let newBlock: BlockSessionLog
+    if (ex.kind === 'resistance') {
+      newBlock = {
+        blockId,
+        type: 'resistance',
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        sets: Array.from({ length: 3 }, () => ({ id: newId(), done: false })),
+      }
+    } else {
+      newBlock = {
+        blockId,
+        type: 'activity',
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        done: false,
+      }
+    }
+    setBlocks((prev) => [...prev, newBlock])
+    setPendingAddExercise(null)
+  }
+
   useEffect(() => {
     if (!program || !day || !sessionId || loading) return
+    if (backdateTs != null) return
     let cancelled = false
     const t = window.setTimeout(() => {
       void (async () => {
@@ -224,7 +383,7 @@ export function WorkoutTrackPage() {
       cancelled = true
       clearTimeout(t)
     }
-  }, [blocks, notes, program, day, sessionId, loading])
+  }, [blocks, notes, program, day, sessionId, loading, backdateTs])
 
   async function onCancel() {
     if (!program || !sessionId) return
@@ -235,7 +394,9 @@ export function WorkoutTrackPage() {
     ) {
       return
     }
-    await deleteWorkoutSession(sessionId)
+    if (backdateTs == null) {
+      await deleteWorkoutSession(sessionId)
+    }
     navigate(`/programs/${program.id}/track`)
   }
 
@@ -258,17 +419,19 @@ export function WorkoutTrackPage() {
         programName: program.name,
         dayLabel: day.label,
         createdAt,
-        completedAt: Date.now(),
+        completedAt: backdateTs ?? Date.now(),
         notes: notes.trim() || undefined,
         blocks,
       }
       await saveWorkoutSession(session)
-      const incompletes = await listIncompleteSessionsForProgramDay(
-        programId,
-        day.id,
-      )
-      for (const o of incompletes) {
-        if (o.id !== sessionId) await deleteWorkoutSession(o.id)
+      if (backdateTs == null) {
+        const incompletes = await listIncompleteSessionsForProgramDay(
+          programId,
+          day.id,
+        )
+        for (const o of incompletes) {
+          if (o.id !== sessionId) await deleteWorkoutSession(o.id)
+        }
       }
       navigate(`/programs/${program.id}/sessions/${session.id}`)
     } finally {
@@ -304,7 +467,7 @@ export function WorkoutTrackPage() {
   return (
     <div className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <Link
-        to={`/programs/${program.id}/track`}
+        to={`/programs/${program.id}/track${backdateStr ? `?date=${backdateStr}` : ''}`}
         className="text-xs font-medium text-slate-500 hover:text-slate-300"
       >
         ← Choose day
@@ -317,15 +480,23 @@ export function WorkoutTrackPage() {
           {autosaveStatus === 'error' && 'Draft not saved'}
         </span>
       </div>
+      {backdateStr && (
+        <p className="mt-1 rounded-lg border border-amber-800/50 bg-amber-950/30 px-3 py-2 text-xs text-amber-200/90">
+          Logging for{' '}
+          <span className="font-medium">
+            {formatBackdateLabel(backdateStr)}
+          </span>
+        </p>
+      )}
       {resumedDraft && (
         <p className="mt-1 text-xs text-teal-400/90">
           Resumed your in-progress session.
         </p>
       )}
       <p className="mt-1 text-sm text-slate-500">
-        Your work is saved automatically as you go. You can leave and resume
-        later from the track page. Tap Save session when you are finished, or
-        Cancel to erase this draft.
+        {backdateTs != null
+          ? 'Fill in your workout and tap Save session when done. Backdated sessions are not auto-saved.'
+          : 'Your work is saved automatically as you go. You can leave and resume later from the track page. Tap Save session when you are finished, or Cancel to erase this draft.'}
       </p>
 
       <div
@@ -365,6 +536,21 @@ export function WorkoutTrackPage() {
         />
       </label>
 
+      {lastCompleted && (
+        <div className="mt-6">
+          <Button
+            variant="secondary"
+            className="w-full text-sm"
+            type="button"
+            onClick={onCopyFullLastSession}
+          >
+            Copy all from last session
+            {lastSessionExtras.length > 0 &&
+              ` (+${lastSessionExtras.length} extra)`}
+          </Button>
+        </div>
+      )}
+
       <div className="mt-8">
         <SessionBlockEditors
           blocks={blocks}
@@ -378,6 +564,67 @@ export function WorkoutTrackPage() {
           }}
         />
       </div>
+
+      <div className="mt-6">
+        <Button
+          variant="secondary"
+          className="w-full text-sm"
+          type="button"
+          onClick={() => setShowExercisePicker(true)}
+        >
+          + Add exercise
+        </Button>
+      </div>
+
+      <ExercisePicker
+        open={showExercisePicker}
+        onClose={() => setShowExercisePicker(false)}
+        onPick={(ex) => {
+          setPendingAddExercise(ex)
+          setShowExercisePicker(false)
+        }}
+      />
+
+      {pendingAddExercise && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
+            <h3 className="text-sm font-semibold text-white">
+              Add {pendingAddExercise.name}
+            </h3>
+            <p className="mt-1.5 text-xs text-slate-400">
+              Add this exercise to the current session only, or make it a
+              permanent part of this program day?
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <Button
+                type="button"
+                onClick={() => addExerciseToSession(pendingAddExercise)}
+              >
+                This session only
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void addExercisePermanently(pendingAddExercise)}
+              >
+                Add to program permanently
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-slate-400"
+                onClick={() => setPendingAddExercise(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-10 flex flex-col gap-2 pb-8 sm:flex-row">
         <Button

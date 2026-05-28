@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { WorkoutSession } from '../types'
 import { listAllSessions } from '../db/repo'
 import { normalizeWorkoutSession } from '../db/normalizeWorkoutSession'
@@ -104,6 +104,7 @@ function IconMeditating(props: { className?: string }) {
 
 export function HomePage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [sessions, setSessions] = useState<WorkoutSession[]>([])
   const [loading, setLoading] = useState(true)
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear())
@@ -118,11 +119,12 @@ export function HomePage() {
   }, [])
 
   useEffect(() => {
+    if (location.pathname !== '/') return
     const id = requestAnimationFrame(() => {
       void load()
     })
     return () => cancelAnimationFrame(id)
-  }, [load])
+  }, [location.pathname, load])
 
   const completedSessions = useMemo(
     () => sessions.filter((s) => s.completedAt != null),

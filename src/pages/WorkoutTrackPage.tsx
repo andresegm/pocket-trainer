@@ -26,7 +26,10 @@ import { exerciseNameMap, logsFromRoutine } from '../db/sessionLog'
 import { SessionBlockEditors } from '../components/SessionBlockEditors'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { Button } from '../components/Button'
-import { computeWorkoutProgress } from '../lib/workoutProgress'
+import {
+  computeWorkoutProgress,
+  finalizeActivityBlocksForSave,
+} from '../lib/workoutProgress'
 
 type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -412,6 +415,7 @@ export function WorkoutTrackPage() {
     setSaving(true)
     try {
       const createdAt = sessionCreatedAtRef.current ?? Date.now()
+      const finalizedBlocks = finalizeActivityBlocksForSave(blocks)
       const session: WorkoutSession = {
         id: sessionId,
         programId: program.id,
@@ -421,7 +425,7 @@ export function WorkoutTrackPage() {
         createdAt,
         completedAt: backdateTs ?? Date.now(),
         notes: notes.trim() || undefined,
-        blocks,
+        blocks: finalizedBlocks,
       }
       await saveWorkoutSession(session)
       if (backdateTs == null) {

@@ -4,6 +4,21 @@ const RUN_EXERCISE_IDS = new Set(['seed-run'])
 const CLIMB_EXERCISE_IDS = new Set(['seed-climb', 'seed-boulder'])
 const MEDITATE_EXERCISE_IDS = new Set(['seed-meditate'])
 
+function activityBlockWasLogged(b: {
+  done?: boolean
+  durationMin?: number
+  lengthKm?: number
+  notes?: string
+}): boolean {
+  return (
+    b.done === true ||
+    b.durationMin != null ||
+    b.lengthKm != null ||
+    Boolean(b.notes?.trim())
+  )
+}
+
+/** Completed session includes this activity if the block was done, skipped, or has logged fields. */
 function hasCompletedActivityBlock(
   s: WorkoutSession,
   matches: (exerciseId: string, exerciseName: string) => boolean,
@@ -11,8 +26,8 @@ function hasCompletedActivityBlock(
   return s.blocks.some(
     (b) =>
       b.type === 'activity' &&
-      b.done === true &&
       b.skipped !== true &&
+      activityBlockWasLogged(b) &&
       matches(b.exerciseId, b.exerciseName),
   )
 }

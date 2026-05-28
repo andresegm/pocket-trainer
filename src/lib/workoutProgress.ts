@@ -28,3 +28,18 @@ export function computeWorkoutProgress(
   }
   return { done, total }
 }
+
+/** Mark activity blocks with logged fields as done when finishing a session. */
+export function finalizeActivityBlocksForSave(
+  blocks: BlockSessionLog[],
+): BlockSessionLog[] {
+  return blocks.map((b) => {
+    if (b.type !== 'activity' || b.skipped || b.done) return b
+    const a = b as ActivityBlockLog
+    const hasLog =
+      a.durationMin != null ||
+      a.lengthKm != null ||
+      Boolean(a.notes?.trim())
+    return hasLog ? { ...a, done: true } : b
+  })
+}

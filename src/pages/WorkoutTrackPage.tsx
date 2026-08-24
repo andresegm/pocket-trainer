@@ -22,7 +22,11 @@ import {
   saveWorkoutSession,
 } from '../db/repo'
 import { normalizeWorkoutSession } from '../db/normalizeWorkoutSession'
-import { exerciseNameMap, logsFromRoutine } from '../db/sessionLog'
+import {
+  exerciseNameMap,
+  logsFromRoutine,
+  routineBlocksFromSessionLogs,
+} from '../db/sessionLog'
 import { SessionBlockEditors } from '../components/SessionBlockEditors'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { Button } from '../components/Button'
@@ -58,6 +62,7 @@ export function WorkoutTrackPage() {
   const [program, setProgram] = useState<Program | null>(null)
   const [blocks, setBlocks] = useState<BlockSessionLog[]>([])
   const [notes, setNotes] = useState('')
+  const [dayLabel, setDayLabel] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -93,13 +98,15 @@ export function WorkoutTrackPage() {
         setSessionId(norm.id)
         setBlocks(norm.blocks)
         setNotes(norm.notes ?? '')
+        setDayLabel(norm.dayLabel || day.label)
         sessionCreatedAtRef.current = norm.createdAt
         setResumedDraft(true)
       } else {
         setSessionId(newId())
         setBlocks(logsFromRoutine(day, exerciseNameMap(ex)))
         setNotes('')
-        sessionCreatedAtRef.current = backdateTs
+        setDayLabel(day.label)
+        sessionCreatedAtRef.current = backdateTs ?? Date.now()
         setResumedDraft(false)
       }
       setLastCompleted(
@@ -108,6 +115,7 @@ export function WorkoutTrackPage() {
     } else {
       setBlocks([])
       setSessionId(null)
+      setDayLabel('')
       setLastCompleted(null)
       setResumedDraft(false)
     }
@@ -366,7 +374,7 @@ export function WorkoutTrackPage() {
             programId: program.id,
             dayId: day.id,
             programName: program.name,
-            dayLabel: day.label,
+            dayLabel: dayLabel.trim() || day.label,
             createdAt: created,
             notes: notes.trim() || undefined,
             blocks,
@@ -386,7 +394,7 @@ export function WorkoutTrackPage() {
       cancelled = true
       clearTimeout(t)
     }
-  }, [blocks, notes, program, day, sessionId, loading, backdateTs])
+  }, [blocks, notes, dayLabel, program, day, sessionId, loading, backdateTs])
 
   async function onCancel() {
     if (!program || !sessionId) return
@@ -416,18 +424,37 @@ export function WorkoutTrackPage() {
     try {
       const createdAt = sessionCreatedAtRef.current ?? Date.now()
       const finalizedBlocks = finalizeActivityBlocksForSave(blocks)
+      const label = dayLabel.trim() || day.label
       const session: WorkoutSession = {
         id: sessionId,
         programId: program.id,
         dayId: day.id,
         programName: program.name,
-        dayLabel: day.label,
+        dayLabel: label,
         createdAt,
-        completedAt: backdateTs ?? Date.now(),
+        // Prefer backdate; otherwise keep the day the workout was started.
+        completedAt: backdateTs ?? createdAt,
         notes: notes.trim() || undefined,
         blocks: finalizedBlocks,
       }
       await saveWorkoutSession(session)
+
+      // Persist renamed day + full exercise list (incl. session-only) onto the program.
+      const updatedProgram: Program = {
+        ...program,
+        days: program.days.map((d) =>
+          d.id === day.id
+            ? {
+                ...d,
+                label,
+                blocks: routineBlocksFromSessionLogs(finalizedBlocks),
+              }
+            : d,
+        ),
+      }
+      await saveProgram(updatedProgram)
+      setProgram(updatedProgram)
+
       if (backdateTs == null) {
         const incompletes = await listIncompleteSessionsForProgramDay(
           programId,
@@ -477,8 +504,18 @@ export function WorkoutTrackPage() {
         ← Choose day
       </Link>
       <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
-        <h1 className="text-xl font-semibold text-white">{day.label}</h1>
-        <span className="text-xs text-slate-500" aria-live="polite">
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Day name</span>
+          <input
+            type="text"
+            className="w-full rounded-lg border border-transparent bg-transparent px-0 py-0.5 text-xl font-semibold text-white outline-none focus:border-slate-700 focus:bg-slate-900 focus:px-2"
+            value={dayLabel}
+            onChange={(e) => setDayLabel(e.target.value)}
+            placeholder={day.label}
+            aria-label="Day name"
+          />
+        </label>
+        <span className="shrink-0 pt-1 text-xs text-slate-500" aria-live="polite">
           {autosaveStatus === 'saving' && 'Saving…'}
           {autosaveStatus === 'saved' && 'Saved'}
           {autosaveStatus === 'error' && 'Draft not saved'}
@@ -499,8 +536,8 @@ export function WorkoutTrackPage() {
       )}
       <p className="mt-1 text-sm text-slate-500">
         {backdateTs != null
-          ? 'Fill in your workout and tap Save session when done. Backdated sessions are not auto-saved.'
-          : 'Your work is saved automatically as you go. You can leave and resume later from the track page. Tap Save session when you are finished, or Cancel to erase this draft.'}
+          ? 'Fill in your workout and tap Save session when done. Backdated sessions are not auto-saved. Renaming the day updates the program when you save.'
+          : 'Your work is saved automatically as you go. You can leave and resume later from the track page. Tap Save session when you are finished, or Cancel to erase this draft. Renaming the day and any exercises you added are saved onto the program day when you finish.'}
       </p>
 
       <div

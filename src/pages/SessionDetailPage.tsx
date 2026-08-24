@@ -59,7 +59,8 @@ export function SessionDetailPage() {
         ...session,
         blocks,
         notes: notes.trim() || undefined,
-        completedAt: Date.now(),
+        // Keep the original workout date when editing a past session.
+        completedAt: session.completedAt ?? session.createdAt,
       }
       await saveWorkoutSession(next)
       setSession(next)

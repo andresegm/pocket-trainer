@@ -1,9 +1,13 @@
 import type {
+  ActivityBlock,
+  ActivityBlockLog,
   BlockSessionLog,
   DailyRoutine,
   Exercise,
   LoggedResistanceSet,
+  ResistanceBlock,
   ResistanceBlockLog,
+  RoutineBlock,
 } from '../types'
 import { newId } from './repo'
 
@@ -79,5 +83,40 @@ export function logsFromRoutine(
       notes: block.notes,
       done: false,
     } satisfies BlockSessionLog
+  })
+}
+
+/**
+ * Turn logged session blocks into a program-day template (including session-only
+ * exercises), so finishing a workout can update the day definition.
+ */
+export function routineBlocksFromSessionLogs(
+  blocks: BlockSessionLog[],
+): RoutineBlock[] {
+  return blocks.map((b) => {
+    if (b.type === 'resistance') {
+      const r = b as ResistanceBlockLog
+      const first = r.sets[0]
+      return {
+        id: r.blockId,
+        type: 'resistance',
+        exerciseId: r.exerciseId,
+        setCount: Math.max(1, r.sets.length),
+        reps: first?.reps,
+        weight: first?.weight,
+        tempo: first?.tempo,
+        intensity: first?.intensity,
+        restSec: first?.restSec,
+      } satisfies ResistanceBlock
+    }
+    const a = b as ActivityBlockLog
+    return {
+      id: a.blockId,
+      type: 'activity',
+      exerciseId: a.exerciseId,
+      durationMin: a.durationMin,
+      lengthKm: a.lengthKm,
+      notes: a.notes,
+    } satisfies ActivityBlock
   })
 }

@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { BlockSessionLog, WorkoutSession } from '../types'
+import type { BlockSessionLog, Program, WorkoutSession } from '../types'
 import {
   deleteWorkoutSession,
+  getProgram,
   getWorkoutSession,
+  listIncompleteSessionsForProgram,
+  newId,
+  saveProgram,
   saveWorkoutSession,
 } from '../db/repo'
+import { routineBlocksFromSessionLogs } from '../db/sessionLog'
 import { SessionBlockEditors } from '../components/SessionBlockEditors'
 import { Button } from '../components/Button'
 
@@ -24,8 +29,10 @@ export function SessionDetailPage() {
   const { programId, sessionId } = useParams()
   const navigate = useNavigate()
   const [session, setSession] = useState<WorkoutSession | null>(null)
+  const [program, setProgram] = useState<Program | null>(null)
   const [blocks, setBlocks] = useState<BlockSessionLog[]>([])
   const [notes, setNotes] = useState('')
+  const [dayLabel, setDayLabel] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -37,9 +44,14 @@ export function SessionDetailPage() {
     if (s) {
       setBlocks(s.blocks)
       setNotes(s.notes ?? '')
+      setDayLabel(s.dayLabel)
+      const p = await getProgram(s.programId)
+      setProgram(p ?? null)
     } else {
       setBlocks([])
       setNotes('')
+      setDayLabel('')
+      setProgram(null)
     }
     setLoading(false)
   }, [sessionId])
@@ -55,8 +67,10 @@ export function SessionDetailPage() {
     if (!session) return
     setSaving(true)
     try {
+      const label = dayLabel.trim() || session.dayLabel
       const next: WorkoutSession = {
         ...session,
+        dayLabel: label,
         blocks,
         notes: notes.trim() || undefined,
         // Keep the original workout date when editing a past session.
@@ -64,9 +78,77 @@ export function SessionDetailPage() {
       }
       await saveWorkoutSession(next)
       setSession(next)
+      setDayLabel(label)
     } finally {
       setSaving(false)
     }
+  }
+
+  async function onAddAsNewDay() {
+    if (!session || !program || !programId) return
+    const label = dayLabel.trim() || session.dayLabel
+    if (
+      !window.confirm(
+        `Add “${label}” as a new day on ${program.name}? Exercises from this session will be copied onto that day.`,
+      )
+    ) {
+      return
+    }
+    setSaving(true)
+    try {
+      const newDayId = newId()
+      const routineBlocks = routineBlocksFromSessionLogs(blocks)
+      const updatedProgram: Program = {
+        ...program,
+        days: [
+          ...program.days,
+          {
+            id: newDayId,
+            label,
+            blocks: routineBlocks,
+          },
+        ],
+      }
+      const next: WorkoutSession = {
+        ...session,
+        dayId: newDayId,
+        dayLabel: label,
+        blocks,
+        notes: notes.trim() || undefined,
+        completedAt: session.completedAt ?? session.createdAt,
+      }
+      await saveProgram(updatedProgram)
+      await saveWorkoutSession(next)
+      setProgram(updatedProgram)
+      setSession(next)
+      setDayLabel(label)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function onCopyAsNewSession() {
+    if (!session || !programId) return
+    const incompletes = await listIncompleteSessionsForProgram(programId)
+    const otherDayDraft = incompletes.find((s) => s.dayId !== session.dayId)
+    if (otherDayDraft) {
+      window.alert(
+        `Finish or cancel your in-progress session (${otherDayDraft.dayLabel}) before starting a copy.`,
+      )
+      return
+    }
+    if (incompletes.some((s) => s.dayId === session.dayId)) {
+      if (
+        !window.confirm(
+          'You already have an in-progress session for this day. Replace it with a copy of this workout?',
+        )
+      ) {
+        return
+      }
+    }
+    navigate(
+      `/programs/${programId}/track/${session.dayId}?copyFrom=${session.id}`,
+    )
   }
 
   async function onDelete() {
@@ -115,9 +197,16 @@ export function SessionDetailPage() {
       >
         ← Sessions
       </Link>
-      <h1 className="mt-2 text-xl font-semibold text-white">
-        {session.dayLabel}
-      </h1>
+      <label className="mt-2 block">
+        <span className="sr-only">Session name</span>
+        <input
+          type="text"
+          className="w-full rounded-lg border border-transparent bg-transparent px-0 py-0.5 text-xl font-semibold text-white outline-none focus:border-slate-700 focus:bg-slate-900 focus:px-2"
+          value={dayLabel}
+          onChange={(e) => setDayLabel(e.target.value)}
+          aria-label="Session name"
+        />
+      </label>
       <p className="mt-1 text-sm text-slate-500">
         {session.programName}
         <br />
@@ -139,18 +228,37 @@ export function SessionDetailPage() {
         <SessionBlockEditors blocks={blocks} onChange={setBlocks} />
       </div>
 
-      <div className="mt-10 flex flex-col gap-2 pb-8 sm:flex-row">
+      <div className="mt-10 flex flex-col gap-2 pb-8">
         <Button
-          className="flex-1"
+          className="w-full"
           disabled={saving}
           onClick={() => void onSave()}
         >
           {saving ? 'Saving…' : 'Update session'}
         </Button>
         <Button
-          variant="danger"
-          className="flex-1 sm:flex-initial"
+          variant="secondary"
+          className="w-full"
           type="button"
+          disabled={saving}
+          onClick={() => void onCopyAsNewSession()}
+        >
+          Copy as new session
+        </Button>
+        <Button
+          variant="secondary"
+          className="w-full"
+          type="button"
+          disabled={saving || !program}
+          onClick={() => void onAddAsNewDay()}
+        >
+          Add as new day to program
+        </Button>
+        <Button
+          variant="danger"
+          className="w-full"
+          type="button"
+          disabled={saving}
           onClick={() => void onDelete()}
         >
           Delete

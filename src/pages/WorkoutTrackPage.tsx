@@ -16,6 +16,7 @@ import {
   getLastCompletedSessionForProgramDay,
   getLastResistanceSetsByBlockFromHistory,
   getProgram,
+  getWorkoutSession,
   listIncompleteSessionsForProgramDay,
   newId,
   saveProgram,
@@ -23,6 +24,7 @@ import {
 } from '../db/repo'
 import { normalizeWorkoutSession } from '../db/normalizeWorkoutSession'
 import {
+  cloneBlocksForNewSession,
   exerciseNameMap,
   logsFromRoutine,
   routineBlocksFromSessionLogs,
@@ -52,6 +54,7 @@ export function WorkoutTrackPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const backdateStr = searchParams.get('date')
+  const copyFromId = searchParams.get('copyFrom')
   const backdateTs = useMemo(() => {
     if (!backdateStr) return null
     const [y, m, d] = backdateStr.split('-').map(Number)
@@ -70,6 +73,7 @@ export function WorkoutTrackPage() {
     null,
   )
   const [resumedDraft, setResumedDraft] = useState(false)
+  const [copiedFromLabel, setCopiedFromLabel] = useState<string | null>(null)
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle')
   const [historyResistanceSetsByBlockId, setHistoryResistanceSetsByBlockId] =
     useState<Map<string, LoggedResistanceSet[]>>(new Map())
@@ -92,7 +96,9 @@ export function WorkoutTrackPage() {
     setProgram(p ?? null)
 
     if (p && day) {
-      const draft = backdateTs == null ? incompletes[0] : undefined
+      // Starting from a prior session replaces any draft for this day.
+      const draft =
+        backdateTs == null && !copyFromId ? incompletes[0] : undefined
       if (draft) {
         const norm = normalizeWorkoutSession(draft)
         setSessionId(norm.id)
@@ -101,11 +107,32 @@ export function WorkoutTrackPage() {
         setDayLabel(norm.dayLabel || day.label)
         sessionCreatedAtRef.current = norm.createdAt
         setResumedDraft(true)
+        setCopiedFromLabel(null)
       } else {
+        if (copyFromId && backdateTs == null) {
+          for (const o of incompletes) {
+            await deleteWorkoutSession(o.id)
+          }
+        }
         setSessionId(newId())
-        setBlocks(logsFromRoutine(day, exerciseNameMap(ex)))
-        setNotes('')
-        setDayLabel(day.label)
+        let seededFromCopy = false
+        if (copyFromId) {
+          const source = await getWorkoutSession(copyFromId)
+          if (source && source.programId === programId) {
+            const norm = normalizeWorkoutSession(source)
+            setBlocks(cloneBlocksForNewSession(norm.blocks))
+            setDayLabel(norm.dayLabel || day.label)
+            setNotes('')
+            setCopiedFromLabel(norm.dayLabel)
+            seededFromCopy = true
+          }
+        }
+        if (!seededFromCopy) {
+          setBlocks(logsFromRoutine(day, exerciseNameMap(ex)))
+          setDayLabel(day.label)
+          setNotes('')
+          setCopiedFromLabel(null)
+        }
         sessionCreatedAtRef.current = backdateTs ?? Date.now()
         setResumedDraft(false)
       }
@@ -118,9 +145,10 @@ export function WorkoutTrackPage() {
       setDayLabel('')
       setLastCompleted(null)
       setResumedDraft(false)
+      setCopiedFromLabel(null)
     }
     setLoading(false)
-  }, [programId, dayId, backdateTs])
+  }, [programId, dayId, backdateTs, copyFromId])
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -527,6 +555,12 @@ export function WorkoutTrackPage() {
           <span className="font-medium">
             {formatBackdateLabel(backdateStr)}
           </span>
+        </p>
+      )}
+      {copiedFromLabel && (
+        <p className="mt-1 text-xs text-teal-400/90">
+          Copied from previous session ({copiedFromLabel}). Values are filled
+          in; nothing is marked done yet.
         </p>
       )}
       {resumedDraft && (

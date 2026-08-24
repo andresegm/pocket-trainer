@@ -120,3 +120,29 @@ export function routineBlocksFromSessionLogs(
     } satisfies ActivityBlock
   })
 }
+
+/** Fresh logs for a new session: same exercises/values, nothing marked done. */
+export function cloneBlocksForNewSession(
+  blocks: BlockSessionLog[],
+): BlockSessionLog[] {
+  return blocks.map((b) => {
+    if (b.type === 'resistance') {
+      const r = b as ResistanceBlockLog
+      return {
+        ...r,
+        skipped: false,
+        sets: r.sets.map((s) => ({
+          ...s,
+          id: newId(),
+          done: false,
+        })),
+      }
+    }
+    const a = b as ActivityBlockLog
+    return {
+      ...a,
+      done: false,
+      skipped: false,
+    }
+  })
+}

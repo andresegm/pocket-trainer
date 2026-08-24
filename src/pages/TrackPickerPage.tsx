@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Program, WorkoutSession } from '../types'
 import {
   getProgram,
@@ -38,6 +38,7 @@ function formatDateLabel(dateStr: string): string {
 
 export function TrackPickerPage() {
   const { programId } = useParams()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const dateParam = searchParams.get('date')
   const [program, setProgram] = useState<Program | null>(null)
@@ -69,6 +70,34 @@ export function TrackPickerPage() {
   }, [load])
 
   const inProgress = incompleteForProgram[0] ?? null
+
+  function copySessionHref(ses: WorkoutSession): string {
+    const params = new URLSearchParams()
+    if (dateParam) params.set('date', dateParam)
+    params.set('copyFrom', ses.id)
+    const q = params.toString()
+    return `/programs/${programId}/track/${ses.dayId}?${q}`
+  }
+
+  function onCopySession(ses: WorkoutSession) {
+    if (!dateParam && inProgress && inProgress.dayId !== ses.dayId) {
+      window.alert(
+        `Finish or cancel your in-progress session (${inProgress.dayLabel}) before copying another workout.`,
+      )
+      return
+    }
+    if (
+      !dateParam &&
+      inProgress &&
+      inProgress.dayId === ses.dayId &&
+      !window.confirm(
+        'You already have an in-progress session for this day. Replace it with a copy of this workout?',
+      )
+    ) {
+      return
+    }
+    navigate(copySessionHref(ses))
+  }
 
   const completedSessions = useMemo(
     () => sessions.filter((s) => s.completedAt != null),
@@ -275,22 +304,48 @@ export function TrackPickerPage() {
           <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-slate-500">
             Recent sessions
           </h2>
+          <p className="mt-1 text-xs text-slate-600">
+            Open a session to edit it, or copy it into a new workout.
+          </p>
           <ul className="mt-3 space-y-2">
-            {completedSessions.slice(0, 20).map((ses) => (
-              <li key={ses.id}>
-                <Link
-                  to={`/programs/${program.id}/sessions/${ses.id}`}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-xl border border-slate-800 bg-slate-900/30 px-4 py-3 text-sm hover:border-slate-700"
+            {completedSessions.slice(0, 20).map((ses) => {
+              const copyBlocked =
+                !dateParam &&
+                inProgress != null &&
+                inProgress.dayId !== ses.dayId
+              return (
+                <li
+                  key={ses.id}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded-xl border border-slate-800 bg-slate-900/30 px-4 py-3"
                 >
-                  <span className="min-w-0 truncate text-slate-200">
-                    {ses.dayLabel}
-                  </span>
-                  <span className="shrink-0 text-xs text-slate-500">
-                    {formatWhen(ses.completedAt!)}
-                  </span>
-                </Link>
-              </li>
-            ))}
+                  <Link
+                    to={`/programs/${program.id}/sessions/${ses.id}`}
+                    className="min-w-0 hover:opacity-90"
+                  >
+                    <div className="truncate text-sm text-slate-200">
+                      {ses.dayLabel}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {formatWhen(ses.completedAt!)}
+                    </div>
+                  </Link>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="shrink-0 text-xs whitespace-nowrap"
+                    disabled={copyBlocked}
+                    title={
+                      copyBlocked
+                        ? 'Finish or cancel your in-progress session first'
+                        : 'Start a new session with this workout’s exercises'
+                    }
+                    onClick={() => onCopySession(ses)}
+                  >
+                    Copy
+                  </Button>
+                </li>
+              )
+            })}
           </ul>
         </>
       )}
